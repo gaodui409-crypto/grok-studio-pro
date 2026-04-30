@@ -23,7 +23,7 @@ export const defaultSettings: Settings = {
   baseUrl: "https://api.x.ai",
   defaultResolution: "1k",
   defaultAspectRatio: "1:1",
-  imageModel: "grok-imagine-image",
+  imageModel: "grok-imagine-image-pro",
   videoModel: "grok-imagine-video",
 };
 
