@@ -40,7 +40,18 @@ export type VideoStatus = {
   error?: string;
 };
 
-export type GeneratedImage = { url?: string; b64_json?: string; revised_prompt?: string; mime_type?: string };
+export type GeneratedImage = { url: string; revised_prompt?: string; mime_type?: string };
+
+// Normalize an API image response item: prefer b64_json (CORS-free, persistable)
+// and convert to a data URI so callers can use it as a normal URL.
+type RawImage = { url?: string; b64_json?: string; revised_prompt?: string; mime_type?: string };
+function normalizeImage(raw: RawImage): GeneratedImage {
+  const mime = raw.mime_type || "image/png";
+  if (raw.b64_json) {
+    return { url: `data:${mime};base64,${raw.b64_json}`, revised_prompt: raw.revised_prompt, mime_type: mime };
+  }
+  return { url: raw.url || "", revised_prompt: raw.revised_prompt, mime_type: mime };
+}
 
 function getCfg() {
   const s = loadSettings();
