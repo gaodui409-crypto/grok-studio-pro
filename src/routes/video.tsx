@@ -10,7 +10,8 @@ import { Progress } from "@/components/ui/progress";
 import { PageHeader } from "@/components/page-header";
 import { ApiKeyBanner } from "@/components/api-key-banner";
 import { ImageUpload } from "@/components/image-upload";
-import { AspectRatioSelect, ResolutionSelect } from "@/components/param-selects";
+import { AspectRatioSelect, ResolutionSelect, VideoModelSelect } from "@/components/param-selects";
+import { useSettings } from "@/hooks/use-settings";
 import { generateVideo, pollVideo, type VideoStatus } from "@/lib/xai";
 import { downloadOne } from "@/lib/download";
 
