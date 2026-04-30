@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as VideoRouteImport } from './routes/video'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as FanartRouteImport } from './routes/fanart'
 import { Route as EditRouteImport } from './routes/edit'
 import { Route as IndexRouteImport } from './routes/index'
 
@@ -22,6 +23,11 @@ const VideoRoute = VideoRouteImport.update({
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FanartRoute = FanartRouteImport.update({
+  id: '/fanart',
+  path: '/fanart',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EditRoute = EditRouteImport.update({
@@ -38,12 +44,14 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/edit': typeof EditRoute
+  '/fanart': typeof FanartRoute
   '/settings': typeof SettingsRoute
   '/video': typeof VideoRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/edit': typeof EditRoute
+  '/fanart': typeof FanartRoute
   '/settings': typeof SettingsRoute
   '/video': typeof VideoRoute
 }
@@ -51,20 +59,22 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/edit': typeof EditRoute
+  '/fanart': typeof FanartRoute
   '/settings': typeof SettingsRoute
   '/video': typeof VideoRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/edit' | '/settings' | '/video'
+  fullPaths: '/' | '/edit' | '/fanart' | '/settings' | '/video'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/edit' | '/settings' | '/video'
-  id: '__root__' | '/' | '/edit' | '/settings' | '/video'
+  to: '/' | '/edit' | '/fanart' | '/settings' | '/video'
+  id: '__root__' | '/' | '/edit' | '/fanart' | '/settings' | '/video'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   EditRoute: typeof EditRoute
+  FanartRoute: typeof FanartRoute
   SettingsRoute: typeof SettingsRoute
   VideoRoute: typeof VideoRoute
 }
@@ -83,6 +93,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/fanart': {
+      id: '/fanart'
+      path: '/fanart'
+      fullPath: '/fanart'
+      preLoaderRoute: typeof FanartRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/edit': {
@@ -105,6 +122,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   EditRoute: EditRoute,
+  FanartRoute: FanartRoute,
   SettingsRoute: SettingsRoute,
   VideoRoute: VideoRoute,
 }
