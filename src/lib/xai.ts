@@ -91,13 +91,13 @@ export async function generateImages(p: ImageGenParams): Promise<GeneratedImage[
     n: p.n ?? 1,
     aspect_ratio: p.aspect_ratio ?? "1:1",
     resolution: p.resolution ?? "1k",
-    response_format: "url",
+    response_format: "b64_json",
   };
-  const data = await request<{ data: GeneratedImage[] }>("/v1/images/generations", {
+  const data = await request<{ data: RawImage[] }>("/v1/images/generations", {
     method: "POST",
     body: JSON.stringify(body),
   });
-  return data.data;
+  return data.data.map(normalizeImage);
 }
 
 export async function editImages(p: ImageEditParams): Promise<GeneratedImage[]> {
@@ -107,7 +107,7 @@ export async function editImages(p: ImageEditParams): Promise<GeneratedImage[]> 
     prompt: p.prompt,
     n: p.n ?? 1,
     resolution: p.resolution ?? "1k",
-    response_format: "url",
+    response_format: "b64_json",
   };
   if (p.images.length === 1) {
     body.image = { url: p.images[0] };
