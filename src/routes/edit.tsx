@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { ImageIcon, Sparkles, Loader2 } from "lucide-react";
+import { Wand2, Sparkles, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -9,35 +9,37 @@ import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/page-header";
 import { ApiKeyBanner } from "@/components/api-key-banner";
 import { ImageGallery } from "@/components/image-gallery";
-import { AspectRatioSelect, ResolutionSelect } from "@/components/param-selects";
+import { ImageUpload } from "@/components/image-upload";
+import { ResolutionSelect } from "@/components/param-selects";
 import { useSettings } from "@/hooks/use-settings";
-import { generateImages, type GeneratedImage } from "@/lib/xai";
+import { editImages, type GeneratedImage } from "@/lib/xai";
 
-export const Route = createFileRoute("/")({
+export const Route = createFileRoute("/edit")({
   head: () => ({
     meta: [
-      { title: "文生图 — Grok Studio" },
-      { name: "description", content: "通过 xAI Grok Imagine 文本生成高质量图片。" },
+      { title: "图生图 — Grok Studio" },
+      { name: "description", content: "上传图片，让 Grok Imagine 进行图片编辑或多图融合。" },
     ],
   }),
-  component: Index,
+  component: EditPage,
 });
 
-function Index() {
+function EditPage() {
   const { settings } = useSettings();
+  const [images, setImages] = useState<string[]>([]);
   const [prompt, setPrompt] = useState("");
   const [n, setN] = useState(1);
-  const [aspect, setAspect] = useState(settings.defaultAspectRatio);
   const [resolution, setResolution] = useState<"1k" | "2k">(settings.defaultResolution);
   const [loading, setLoading] = useState(false);
-  const [images, setImages] = useState<GeneratedImage[]>([]);
+  const [results, setResults] = useState<GeneratedImage[]>([]);
 
   const handleGenerate = async () => {
-    if (!prompt.trim()) return toast.error("请输入提示词");
+    if (!images.length) return toast.error("请上传至少一张图片");
+    if (!prompt.trim()) return toast.error("请输入编辑指令");
     setLoading(true);
     try {
-      const data = await generateImages({ prompt, n, aspect_ratio: aspect, resolution });
-      setImages(data);
+      const data = await editImages({ prompt, images, n, resolution });
+      setResults(data);
       toast.success(`已生成 ${data.length} 张图片`);
     } catch (e) {
       toast.error((e as Error).message);
@@ -48,24 +50,32 @@ function Index() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 md:px-8">
-      <PageHeader title="文生图" description="输入提示词，让 Grok Imagine 把想象变成画面。" icon={ImageIcon} />
+      <PageHeader title="图生图 / 编辑" description="单图编辑或多图融合。多图模式下可在提示词中用 <IMAGE_0>、<IMAGE_1> 引用。" icon={Wand2} />
       <ApiKeyBanner />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="space-y-4 rounded-2xl border border-border/60 bg-card p-5 shadow-card">
+        <div className="space-y-5 rounded-2xl border border-border/60 bg-card p-5 shadow-card">
           <div className="space-y-2">
-            <Label>提示词</Label>
+            <Label>参考图（最多 4 张）</Label>
+            <ImageUpload values={images} onChange={setImages} max={4} />
+          </div>
+          <div className="space-y-2">
+            <Label>编辑指令</Label>
             <Textarea
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
-              placeholder="例如：赛博朋克风格的东京夜晚，霓虹倒映在湿润街道，雨夜，电影感"
-              className="min-h-[180px] resize-none bg-background/60 text-base"
+              placeholder={
+                images.length > 1
+                  ? "例如：把 <IMAGE_0> 中的人物放到 <IMAGE_1> 的背景里，统一光影"
+                  : "例如：把背景换成樱花飘落的黄昏，保持人物不变"
+              }
+              className="min-h-[140px] resize-none bg-background/60"
             />
           </div>
-          <div className="flex items-center justify-end gap-2">
+          <div className="flex justify-end">
             <Button onClick={handleGenerate} disabled={loading} className="bg-gradient-primary text-primary-foreground shadow-glow hover:opacity-95">
               {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-              {loading ? "生成中…" : "生成图片"}
+              {loading ? "生成中…" : "生成"}
             </Button>
           </div>
         </div>
@@ -76,21 +86,20 @@ function Index() {
             <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">数量 (1–10)</Label>
             <Input type="number" min={1} max={10} value={n} onChange={(e) => setN(Math.min(10, Math.max(1, +e.target.value || 1)))} />
           </div>
-          <AspectRatioSelect value={aspect} onChange={setAspect} />
           <ResolutionSelect value={resolution} onChange={(v) => setResolution(v as "1k" | "2k")} />
         </aside>
       </div>
 
-      {(loading || images.length > 0) && (
+      {(loading || results.length > 0) && (
         <div className="mt-8">
-          {loading && images.length === 0 ? (
+          {loading && results.length === 0 ? (
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {Array.from({ length: n }).map((_, i) => (
                 <div key={i} className="aspect-square animate-pulse rounded-xl bg-surface" />
               ))}
             </div>
           ) : (
-            <ImageGallery images={images} prefix="t2i" />
+            <ImageGallery images={results} prefix="i2i" />
           )}
         </div>
       )}
