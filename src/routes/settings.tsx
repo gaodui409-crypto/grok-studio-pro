@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PageHeader } from "@/components/page-header";
-import { AspectRatioSelect, ResolutionSelect } from "@/components/param-selects";
+import { AspectRatioSelect, ResolutionSelect, ImageModelSelect, VideoModelSelect } from "@/components/param-selects";
 import { useSettings } from "@/hooks/use-settings";
 
 export const Route = createFileRoute("/settings")({
@@ -71,6 +71,8 @@ function SettingsPage() {
         <div className="grid gap-4 md:grid-cols-2">
           <AspectRatioSelect value={draft.defaultAspectRatio} onChange={(v) => setDraft({ ...draft, defaultAspectRatio: v })} />
           <ResolutionSelect value={draft.defaultResolution} onChange={(v) => setDraft({ ...draft, defaultResolution: v as "1k" | "2k" })} />
+          <ImageModelSelect value={draft.imageModel} onChange={(v) => setDraft({ ...draft, imageModel: v })} />
+          <VideoModelSelect value={draft.videoModel} onChange={(v) => setDraft({ ...draft, videoModel: v })} />
         </div>
 
         <div className="flex justify-end pt-2">
