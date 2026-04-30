@@ -10,7 +10,8 @@ import { Progress } from "@/components/ui/progress";
 import { PageHeader } from "@/components/page-header";
 import { ApiKeyBanner } from "@/components/api-key-banner";
 import { ImageUpload } from "@/components/image-upload";
-import { AspectRatioSelect, ResolutionSelect } from "@/components/param-selects";
+import { AspectRatioSelect, ResolutionSelect, VideoModelSelect } from "@/components/param-selects";
+import { useSettings } from "@/hooks/use-settings";
 import { generateVideo, pollVideo, type VideoStatus } from "@/lib/xai";
 import { downloadOne } from "@/lib/download";
 
@@ -25,10 +26,12 @@ export const Route = createFileRoute("/video")({
 });
 
 function VideoPage() {
+  const { settings } = useSettings();
   const [prompt, setPrompt] = useState("");
   const [duration, setDuration] = useState(6);
   const [aspect, setAspect] = useState("16:9");
   const [resolution, setResolution] = useState<"480p" | "720p">("480p");
+  const [model, setModel] = useState(settings.videoModel);
   const [startImage, setStartImage] = useState<string[]>([]);
   const [refImages, setRefImages] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -46,6 +49,7 @@ function VideoPage() {
         duration,
         aspect_ratio: aspect,
         resolution,
+        model,
         image: startImage[0],
         reference_images: refImages.length ? refImages : undefined,
       });
@@ -131,6 +135,7 @@ function VideoPage() {
           </div>
           <AspectRatioSelect value={aspect} onChange={setAspect} />
           <ResolutionSelect value={resolution} onChange={(v) => setResolution(v as "480p" | "720p")} options={["480p", "720p"]} />
+          <VideoModelSelect value={model} onChange={setModel} />
         </aside>
       </div>
     </div>

@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as VideoRouteImport } from './routes/video'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as GalleryRouteImport } from './routes/gallery'
 import { Route as FanartRouteImport } from './routes/fanart'
 import { Route as EditRouteImport } from './routes/edit'
 import { Route as IndexRouteImport } from './routes/index'
@@ -23,6 +24,11 @@ const VideoRoute = VideoRouteImport.update({
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GalleryRoute = GalleryRouteImport.update({
+  id: '/gallery',
+  path: '/gallery',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FanartRoute = FanartRouteImport.update({
@@ -45,6 +51,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/edit': typeof EditRoute
   '/fanart': typeof FanartRoute
+  '/gallery': typeof GalleryRoute
   '/settings': typeof SettingsRoute
   '/video': typeof VideoRoute
 }
@@ -52,6 +59,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/edit': typeof EditRoute
   '/fanart': typeof FanartRoute
+  '/gallery': typeof GalleryRoute
   '/settings': typeof SettingsRoute
   '/video': typeof VideoRoute
 }
@@ -60,21 +68,30 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/edit': typeof EditRoute
   '/fanart': typeof FanartRoute
+  '/gallery': typeof GalleryRoute
   '/settings': typeof SettingsRoute
   '/video': typeof VideoRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/edit' | '/fanart' | '/settings' | '/video'
+  fullPaths: '/' | '/edit' | '/fanart' | '/gallery' | '/settings' | '/video'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/edit' | '/fanart' | '/settings' | '/video'
-  id: '__root__' | '/' | '/edit' | '/fanart' | '/settings' | '/video'
+  to: '/' | '/edit' | '/fanart' | '/gallery' | '/settings' | '/video'
+  id:
+    | '__root__'
+    | '/'
+    | '/edit'
+    | '/fanart'
+    | '/gallery'
+    | '/settings'
+    | '/video'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   EditRoute: typeof EditRoute
   FanartRoute: typeof FanartRoute
+  GalleryRoute: typeof GalleryRoute
   SettingsRoute: typeof SettingsRoute
   VideoRoute: typeof VideoRoute
 }
@@ -93,6 +110,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/gallery': {
+      id: '/gallery'
+      path: '/gallery'
+      fullPath: '/gallery'
+      preLoaderRoute: typeof GalleryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/fanart': {
@@ -123,6 +147,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   EditRoute: EditRoute,
   FanartRoute: FanartRoute,
+  GalleryRoute: GalleryRoute,
   SettingsRoute: SettingsRoute,
   VideoRoute: VideoRoute,
 }

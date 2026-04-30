@@ -10,9 +10,10 @@ import { PageHeader } from "@/components/page-header";
 import { ApiKeyBanner } from "@/components/api-key-banner";
 import { ImageGallery } from "@/components/image-gallery";
 import { ImageUpload } from "@/components/image-upload";
-import { ResolutionSelect } from "@/components/param-selects";
+import { ResolutionSelect, ImageModelSelect } from "@/components/param-selects";
 import { useSettings } from "@/hooks/use-settings";
 import { editImages, type GeneratedImage } from "@/lib/xai";
+import { addGalleryFromUrl } from "@/lib/gallery-db";
 
 export const Route = createFileRoute("/edit")({
   head: () => ({
@@ -30,6 +31,7 @@ function EditPage() {
   const [prompt, setPrompt] = useState("");
   const [n, setN] = useState(1);
   const [resolution, setResolution] = useState<"1k" | "2k">(settings.defaultResolution);
+  const [model, setModel] = useState(settings.imageModel);
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<GeneratedImage[]>([]);
 
@@ -38,9 +40,12 @@ function EditPage() {
     if (!prompt.trim()) return toast.error("请输入编辑指令");
     setLoading(true);
     try {
-      const data = await editImages({ prompt, images, n, resolution });
+      const data = await editImages({ prompt, images, n, resolution, model });
       setResults(data);
       toast.success(`已生成 ${data.length} 张图片`);
+      Promise.all(data.map((img) =>
+        addGalleryFromUrl(img.url, { prompt, model, sceneName: "图生图" }).catch(() => null),
+      ));
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -87,6 +92,7 @@ function EditPage() {
             <Input type="number" min={1} max={10} value={n} onChange={(e) => setN(Math.min(10, Math.max(1, +e.target.value || 1)))} />
           </div>
           <ResolutionSelect value={resolution} onChange={(v) => setResolution(v as "1k" | "2k")} />
+          <ImageModelSelect value={model} onChange={setModel} />
         </aside>
       </div>
 
