@@ -14,6 +14,7 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as GalleryRouteImport } from './routes/gallery'
 import { Route as FanartRouteImport } from './routes/fanart'
 import { Route as EditRouteImport } from './routes/edit'
+import { Route as ComicRouteImport } from './routes/comic'
 import { Route as IndexRouteImport } from './routes/index'
 
 const VideoRoute = VideoRouteImport.update({
@@ -41,6 +42,11 @@ const EditRoute = EditRouteImport.update({
   path: '/edit',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ComicRoute = ComicRouteImport.update({
+  id: '/comic',
+  path: '/comic',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -49,6 +55,7 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/comic': typeof ComicRoute
   '/edit': typeof EditRoute
   '/fanart': typeof FanartRoute
   '/gallery': typeof GalleryRoute
@@ -57,6 +64,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/comic': typeof ComicRoute
   '/edit': typeof EditRoute
   '/fanart': typeof FanartRoute
   '/gallery': typeof GalleryRoute
@@ -66,6 +74,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/comic': typeof ComicRoute
   '/edit': typeof EditRoute
   '/fanart': typeof FanartRoute
   '/gallery': typeof GalleryRoute
@@ -74,12 +83,20 @@ export interface FileRoutesById {
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/edit' | '/fanart' | '/gallery' | '/settings' | '/video'
+  fullPaths:
+    | '/'
+    | '/comic'
+    | '/edit'
+    | '/fanart'
+    | '/gallery'
+    | '/settings'
+    | '/video'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/edit' | '/fanart' | '/gallery' | '/settings' | '/video'
+  to: '/' | '/comic' | '/edit' | '/fanart' | '/gallery' | '/settings' | '/video'
   id:
     | '__root__'
     | '/'
+    | '/comic'
     | '/edit'
     | '/fanart'
     | '/gallery'
@@ -89,6 +106,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ComicRoute: typeof ComicRoute
   EditRoute: typeof EditRoute
   FanartRoute: typeof FanartRoute
   GalleryRoute: typeof GalleryRoute
@@ -133,6 +151,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EditRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/comic': {
+      id: '/comic'
+      path: '/comic'
+      fullPath: '/comic'
+      preLoaderRoute: typeof ComicRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -145,6 +170,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ComicRoute: ComicRoute,
   EditRoute: EditRoute,
   FanartRoute: FanartRoute,
   GalleryRoute: GalleryRoute,
