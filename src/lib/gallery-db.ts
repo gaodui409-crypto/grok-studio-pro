@@ -11,6 +11,8 @@ export type GalleryItem = {
   action?: string;
   character?: string;
   model?: string;
+  type?: "image" | "video";
+  duration?: number;
   createdAt: number;
   size: number;
 };
