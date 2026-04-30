@@ -114,11 +114,11 @@ export async function editImages(p: ImageEditParams): Promise<GeneratedImage[]> 
   } else {
     body.images = p.images.map((url) => ({ url }));
   }
-  const data = await request<{ data: GeneratedImage[] }>("/v1/images/edits", {
+  const data = await request<{ data: RawImage[] }>("/v1/images/edits", {
     method: "POST",
     body: JSON.stringify(body),
   });
-  return data.data;
+  return data.data.map(normalizeImage);
 }
 
 export async function generateVideo(p: VideoGenParams): Promise<{ request_id: string }> {
