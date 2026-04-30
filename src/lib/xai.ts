@@ -147,6 +147,47 @@ export async function editVideo(p: VideoEditParams): Promise<{ request_id: strin
   });
 }
 
+export type VideoExtendParams = {
+  prompt: string;
+  video: string;
+  duration?: number;
+  model?: string;
+};
+
+export async function extendVideo(p: VideoExtendParams): Promise<{ request_id: string }> {
+  const cfg = loadSettings();
+  return request("/v1/videos/extensions", {
+    method: "POST",
+    body: JSON.stringify({
+      model: p.model ?? cfg.videoModel,
+      prompt: p.prompt,
+      video: { url: p.video },
+      duration: p.duration ?? 6,
+    }),
+  });
+}
+
+export type ChatMessageContent =
+  | { type: "text"; text: string }
+  | { type: "image_url"; image_url: { url: string } };
+
+export async function chatCompletion(params: {
+  model?: string;
+  messages: { role: "user" | "system" | "assistant"; content: string | ChatMessageContent[] }[];
+}): Promise<string> {
+  const data = await request<{ choices: { message: { content: string } }[] }>(
+    "/v1/chat/completions",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        model: params.model ?? "grok-4.20-0309-non-reasoning",
+        messages: params.messages,
+      }),
+    },
+  );
+  return data.choices?.[0]?.message?.content ?? "";
+}
+
 export async function getVideoStatus(requestId: string): Promise<VideoStatus> {
   return request(`/v1/videos/${requestId}`, { method: "GET" });
 }
