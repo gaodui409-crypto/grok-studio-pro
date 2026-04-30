@@ -5,13 +5,15 @@ export type ImageGenParams = {
   n?: number;
   aspect_ratio?: string;
   resolution?: "1k" | "2k";
+  model?: string;
 };
 
 export type ImageEditParams = {
   prompt: string;
-  images: string[]; // url or data URI
+  images: string[];
   n?: number;
   resolution?: "1k" | "2k";
+  model?: string;
 };
 
 export type VideoGenParams = {
@@ -21,11 +23,13 @@ export type VideoGenParams = {
   resolution?: "480p" | "720p";
   image?: string;
   reference_images?: string[];
+  model?: string;
 };
 
 export type VideoEditParams = {
   prompt: string;
   video: string;
+  model?: string;
 };
 
 export type VideoStatus = {
@@ -69,8 +73,9 @@ async function request<T>(path: string, init: RequestInit): Promise<T> {
 }
 
 export async function generateImages(p: ImageGenParams): Promise<GeneratedImage[]> {
+  const cfg = loadSettings();
   const body = {
-    model: "grok-imagine-image",
+    model: p.model ?? cfg.imageModel,
     prompt: p.prompt,
     n: p.n ?? 1,
     aspect_ratio: p.aspect_ratio ?? "1:1",
@@ -85,8 +90,9 @@ export async function generateImages(p: ImageGenParams): Promise<GeneratedImage[
 }
 
 export async function editImages(p: ImageEditParams): Promise<GeneratedImage[]> {
+  const cfg = loadSettings();
   const body: Record<string, unknown> = {
-    model: "grok-imagine-image",
+    model: p.model ?? cfg.imageModel,
     prompt: p.prompt,
     n: p.n ?? 1,
     resolution: p.resolution ?? "1k",
@@ -105,8 +111,9 @@ export async function editImages(p: ImageEditParams): Promise<GeneratedImage[]> 
 }
 
 export async function generateVideo(p: VideoGenParams): Promise<{ request_id: string }> {
+  const cfg = loadSettings();
   const body: Record<string, unknown> = {
-    model: "grok-imagine-video",
+    model: p.model ?? cfg.videoModel,
     prompt: p.prompt,
     duration: p.duration ?? 6,
     aspect_ratio: p.aspect_ratio ?? "16:9",
@@ -118,10 +125,11 @@ export async function generateVideo(p: VideoGenParams): Promise<{ request_id: st
 }
 
 export async function editVideo(p: VideoEditParams): Promise<{ request_id: string }> {
+  const cfg = loadSettings();
   return request("/v1/videos/edits", {
     method: "POST",
     body: JSON.stringify({
-      model: "grok-imagine-video",
+      model: p.model ?? cfg.videoModel,
       prompt: p.prompt,
       video: { url: p.video },
     }),
