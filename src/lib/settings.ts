@@ -1,9 +1,10 @@
 export const IMAGE_MODELS = [
-  { id: "grok-imagine-image", label: "Grok Imagine · Image" },
+  { id: "grok-imagine-image-pro", label: "Grok Imagine · Image Pro ($0.07/张)" },
+  { id: "grok-imagine-image", label: "Grok Imagine · Image ($0.04/张)" },
 ] as const;
 
 export const VIDEO_MODELS = [
-  { id: "grok-imagine-video", label: "Grok Imagine · Video" },
+  { id: "grok-imagine-video", label: "Grok Imagine · Video (480p $0.05/s · 720p $0.07/s)" },
 ] as const;
 
 export type Settings = {
