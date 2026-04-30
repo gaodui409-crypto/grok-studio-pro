@@ -95,8 +95,8 @@ function FanartPage() {
   // Selection state per scene
   const [sel, setSel] = useState<Selections>({});
   // global single-pick style/lighting (store value, "" = none)
-  const [styleSel, setStyleSel] = useState<string>(tree.styles[0] ?? "");
-  const [lightSel, setLightSel] = useState<string>(tree.lighting[0] ?? "");
+  const [styleSel, setStyleSel] = useState<string>("");
+  const [lightSel, setLightSel] = useState<string>("");
 
   // Generation params
   const [mode, setMode] = useState<"single" | "multi">("single");
@@ -409,10 +409,22 @@ function FanartPage() {
           {/* Global style / lighting */}
           <section className="space-y-4 rounded-2xl border border-border/60 bg-card p-5 shadow-card">
             <h3 className="font-display text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              全局设定 <span className="ml-2 normal-case tracking-normal text-foreground/50 text-xs">单选</span>
+              全局设定 <span className="ml-2 normal-case tracking-normal text-foreground/50 text-xs">单选 · 可留空</span>
             </h3>
             <div className="space-y-2">
-              <Label className="text-xs uppercase tracking-wider text-muted-foreground">画风</Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-xs uppercase tracking-wider text-muted-foreground">画风</Label>
+                <button
+                  type="button"
+                  onClick={() => setStyleSel("")}
+                  className={cn(
+                    "rounded-full border px-2 py-0.5 text-xs transition",
+                    styleSel === ""
+                      ? "border-primary/60 bg-primary/20 text-primary-glow"
+                      : "border-border/60 text-muted-foreground hover:border-primary/40",
+                  )}
+                >无（让 AI 自由发挥）</button>
+              </div>
               <EditableChipList
                 multi={false}
                 items={styleItems}
@@ -425,7 +437,19 @@ function FanartPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label className="text-xs uppercase tracking-wider text-muted-foreground">光影氛围</Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-xs uppercase tracking-wider text-muted-foreground">光影氛围</Label>
+                <button
+                  type="button"
+                  onClick={() => setLightSel("")}
+                  className={cn(
+                    "rounded-full border px-2 py-0.5 text-xs transition",
+                    lightSel === ""
+                      ? "border-primary/60 bg-primary/20 text-primary-glow"
+                      : "border-border/60 text-muted-foreground hover:border-primary/40",
+                  )}
+                >无（让 AI 自由发挥）</button>
+              </div>
               <EditableChipList
                 multi={false}
                 items={lightItems}

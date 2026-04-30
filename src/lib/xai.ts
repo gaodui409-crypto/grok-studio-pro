@@ -40,7 +40,18 @@ export type VideoStatus = {
   error?: string;
 };
 
-export type GeneratedImage = { url: string; revised_prompt?: string };
+export type GeneratedImage = { url: string; revised_prompt?: string; mime_type?: string };
+
+// Normalize an API image response item: prefer b64_json (CORS-free, persistable)
+// and convert to a data URI so callers can use it as a normal URL.
+type RawImage = { url?: string; b64_json?: string; revised_prompt?: string; mime_type?: string };
+function normalizeImage(raw: RawImage): GeneratedImage {
+  const mime = raw.mime_type || "image/png";
+  if (raw.b64_json) {
+    return { url: `data:${mime};base64,${raw.b64_json}`, revised_prompt: raw.revised_prompt, mime_type: mime };
+  }
+  return { url: raw.url || "", revised_prompt: raw.revised_prompt, mime_type: mime };
+}
 
 function getCfg() {
   const s = loadSettings();
@@ -80,13 +91,13 @@ export async function generateImages(p: ImageGenParams): Promise<GeneratedImage[
     n: p.n ?? 1,
     aspect_ratio: p.aspect_ratio ?? "1:1",
     resolution: p.resolution ?? "1k",
-    response_format: "url",
+    response_format: "b64_json",
   };
-  const data = await request<{ data: GeneratedImage[] }>("/v1/images/generations", {
+  const data = await request<{ data: RawImage[] }>("/v1/images/generations", {
     method: "POST",
     body: JSON.stringify(body),
   });
-  return data.data;
+  return data.data.map(normalizeImage);
 }
 
 export async function editImages(p: ImageEditParams): Promise<GeneratedImage[]> {
@@ -96,18 +107,18 @@ export async function editImages(p: ImageEditParams): Promise<GeneratedImage[]> 
     prompt: p.prompt,
     n: p.n ?? 1,
     resolution: p.resolution ?? "1k",
-    response_format: "url",
+    response_format: "b64_json",
   };
   if (p.images.length === 1) {
     body.image = { url: p.images[0] };
   } else {
     body.images = p.images.map((url) => ({ url }));
   }
-  const data = await request<{ data: GeneratedImage[] }>("/v1/images/edits", {
+  const data = await request<{ data: RawImage[] }>("/v1/images/edits", {
     method: "POST",
     body: JSON.stringify(body),
   });
-  return data.data;
+  return data.data.map(normalizeImage);
 }
 
 export async function generateVideo(p: VideoGenParams): Promise<{ request_id: string }> {

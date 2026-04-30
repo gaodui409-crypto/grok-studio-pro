@@ -44,8 +44,10 @@ function EditPage() {
       setResults(data);
       toast.success(`已生成 ${data.length} 张图片`);
       Promise.all(data.map((img) =>
-        addGalleryFromUrl(img.url, { prompt, model, sceneName: "图生图" }).catch(() => null),
-      ));
+        addGalleryFromUrl(img.url, { prompt, model, sceneName: "图生图" }),
+      ))
+        .then(() => toast.success("已自动保存到画廊"))
+        .catch((e) => toast.error(`画廊保存失败：${(e as Error).message}`));
     } catch (e) {
       toast.error((e as Error).message);
     } finally {

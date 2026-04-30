@@ -13,6 +13,7 @@ import { ImageUpload } from "@/components/image-upload";
 import { AspectRatioSelect, ResolutionSelect, VideoModelSelect } from "@/components/param-selects";
 import { useSettings } from "@/hooks/use-settings";
 import { generateVideo, pollVideo, type VideoStatus } from "@/lib/xai";
+import { addGalleryFromUrl } from "@/lib/gallery-db";
 import { downloadOne } from "@/lib/download";
 
 export const Route = createFileRoute("/video")({
@@ -59,6 +60,9 @@ function VideoPage() {
       if (final.status === "done" && final.video?.url) {
         setVideoUrl(final.video.url);
         toast.success("视频生成完成");
+        addGalleryFromUrl(final.video.url, { prompt, model, sceneName: "视频" })
+          .then(() => toast.success("已保存到画廊"))
+          .catch((e) => toast.error(`画廊保存失败：${(e as Error).message}（可手动下载）`));
       } else {
         toast.error(`任务${final.status === "failed" ? "失败" : "已过期"}`);
       }
