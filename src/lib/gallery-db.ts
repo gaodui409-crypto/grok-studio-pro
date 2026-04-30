@@ -11,6 +11,8 @@ export type GalleryItem = {
   action?: string;
   character?: string;
   model?: string;
+  type?: "image" | "video";
+  duration?: number;
   createdAt: number;
   size: number;
 };
@@ -54,13 +56,17 @@ export async function addGalleryFromUrl(
 ): Promise<GalleryItem> {
   const res = await fetch(url);
   const blob = await res.blob();
+  const mimeType = blob.type || (meta.type === "video" ? "video/mp4" : "image/png");
+  const inferredType: "image" | "video" =
+    meta.type ?? (mimeType.startsWith("video/") ? "video" : "image");
   const item: GalleryItem = {
     id: uid(),
     blob,
-    mimeType: blob.type || "image/png",
+    mimeType,
     createdAt: Date.now(),
     size: blob.size,
     ...meta,
+    type: inferredType,
   };
   const db = await openDb();
   await new Promise<void>((resolve, reject) => {

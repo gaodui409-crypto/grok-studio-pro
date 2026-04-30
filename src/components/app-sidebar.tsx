@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { ImageIcon, Wand2, Film, Sparkles, Settings as SettingsIcon, Images } from "lucide-react";
+import { ImageIcon, Wand2, Film, Sparkles, Settings as SettingsIcon, Images, BookOpen } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -18,6 +18,7 @@ const items = [
   { title: "图生图", url: "/edit", icon: Wand2 },
   { title: "视频生成", url: "/video", icon: Film },
   { title: "同人图批量", url: "/fanart", icon: Sparkles },
+  { title: "漫画工具", url: "/comic", icon: BookOpen },
   { title: "画廊", url: "/gallery", icon: Images },
 ];
 
