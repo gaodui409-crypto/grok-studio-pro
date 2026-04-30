@@ -9,9 +9,10 @@ import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/page-header";
 import { ApiKeyBanner } from "@/components/api-key-banner";
 import { ImageGallery } from "@/components/image-gallery";
-import { AspectRatioSelect, ResolutionSelect } from "@/components/param-selects";
+import { AspectRatioSelect, ResolutionSelect, ImageModelSelect } from "@/components/param-selects";
 import { useSettings } from "@/hooks/use-settings";
 import { generateImages, type GeneratedImage } from "@/lib/xai";
+import { addGalleryFromUrl } from "@/lib/gallery-db";
 
 export const Route = createFileRoute("/")({
   head: () => ({
