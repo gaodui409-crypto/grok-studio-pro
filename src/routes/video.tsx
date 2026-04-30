@@ -13,6 +13,7 @@ import { ImageUpload } from "@/components/image-upload";
 import { AspectRatioSelect, ResolutionSelect, VideoModelSelect } from "@/components/param-selects";
 import { useSettings } from "@/hooks/use-settings";
 import { generateVideo, pollVideo, type VideoStatus } from "@/lib/xai";
+import { addGalleryFromUrl } from "@/lib/gallery-db";
 import { downloadOne } from "@/lib/download";
 
 export const Route = createFileRoute("/video")({
