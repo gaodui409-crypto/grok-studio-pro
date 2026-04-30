@@ -30,6 +30,7 @@ function Index() {
   const [n, setN] = useState(1);
   const [aspect, setAspect] = useState(settings.defaultAspectRatio);
   const [resolution, setResolution] = useState<"1k" | "2k">(settings.defaultResolution);
+  const [model, setModel] = useState(settings.imageModel);
   const [loading, setLoading] = useState(false);
   const [images, setImages] = useState<GeneratedImage[]>([]);
 
@@ -37,9 +38,12 @@ function Index() {
     if (!prompt.trim()) return toast.error("请输入提示词");
     setLoading(true);
     try {
-      const data = await generateImages({ prompt, n, aspect_ratio: aspect, resolution });
+      const data = await generateImages({ prompt, n, aspect_ratio: aspect, resolution, model });
       setImages(data);
       toast.success(`已生成 ${data.length} 张图片`);
+      Promise.all(data.map((img) =>
+        addGalleryFromUrl(img.url, { prompt, model, sceneName: "文生图" }).catch(() => null),
+      ));
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -79,6 +83,7 @@ function Index() {
           </div>
           <AspectRatioSelect value={aspect} onChange={setAspect} />
           <ResolutionSelect value={resolution} onChange={(v) => setResolution(v as "1k" | "2k")} />
+          <ImageModelSelect value={model} onChange={setModel} />
         </aside>
       </div>
 
