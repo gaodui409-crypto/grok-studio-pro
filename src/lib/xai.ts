@@ -40,7 +40,7 @@ export type VideoStatus = {
   error?: string;
 };
 
-export type GeneratedImage = { url: string; revised_prompt?: string };
+export type GeneratedImage = { url?: string; b64_json?: string; revised_prompt?: string; mime_type?: string };
 
 function getCfg() {
   const s = loadSettings();
