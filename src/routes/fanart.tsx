@@ -95,8 +95,8 @@ function FanartPage() {
   // Selection state per scene
   const [sel, setSel] = useState<Selections>({});
   // global single-pick style/lighting (store value, "" = none)
-  const [styleSel, setStyleSel] = useState<string>(tree.styles[0] ?? "");
-  const [lightSel, setLightSel] = useState<string>(tree.lighting[0] ?? "");
+  const [styleSel, setStyleSel] = useState<string>("");
+  const [lightSel, setLightSel] = useState<string>("");
 
   // Generation params
   const [mode, setMode] = useState<"single" | "multi">("single");
