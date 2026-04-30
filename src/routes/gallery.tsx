@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
-import { Images, Trash2, Download, Copy, Maximize2, CheckSquare, Square, AlertTriangle } from "lucide-react";
+import { Images, Trash2, Download, Copy, Maximize2, CheckSquare, Square, AlertTriangle, Play } from "lucide-react";
 import { toast } from "sonner";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
@@ -26,11 +26,17 @@ export const Route = createFileRoute("/gallery")({
   head: () => ({
     meta: [
       { title: "画廊 — Grok Studio" },
-      { name: "description", content: "本地持久化画廊：管理、筛选、批量下载已生成的图片。" },
+      { name: "description", content: "本地持久化画廊：管理、筛选、批量下载已生成的图片与视频。" },
     ],
   }),
   component: GalleryPage,
 });
+
+function extOf(mime: string, type?: string) {
+  if (type === "video") return "mp4";
+  const sub = mime.split("/")[1] || "png";
+  return sub.split(";")[0];
+}
 
 function GalleryPage() {
   const [items, setItems] = useState<GalleryMeta[]>([]);
@@ -38,8 +44,10 @@ function GalleryPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [urlCache, setUrlCache] = useState<Record<string, string>>({});
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewType, setPreviewType] = useState<"image" | "video">("image");
   const [filterScene, setFilterScene] = useState<string>("all");
   const [filterChar, setFilterChar] = useState<string>("all");
+  const [filterType, setFilterType] = useState<string>("all");
   const [search, setSearch] = useState("");
 
   const refresh = async () => {
@@ -55,7 +63,6 @@ function GalleryPage() {
     return () => window.removeEventListener("grok-gallery-changed", h);
   }, []);
 
-  // Load thumbnails (object URLs) lazily
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -71,7 +78,6 @@ function GalleryPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items]);
 
-  // Cleanup object URLs on unmount
   useEffect(() => () => {
     Object.values(urlCache).forEach((u) => URL.revokeObjectURL(u));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -80,12 +86,16 @@ function GalleryPage() {
   const scenes = useMemo(() => Array.from(new Set(items.map((i) => i.sceneName).filter(Boolean))) as string[], [items]);
   const chars = useMemo(() => Array.from(new Set(items.map((i) => i.character).filter(Boolean))) as string[], [items]);
 
+  const typeOf = (i: GalleryMeta): "image" | "video" =>
+    i.type ?? (i.mimeType?.startsWith("video/") ? "video" : "image");
+
   const filtered = useMemo(() => items.filter((i) => {
     if (filterScene !== "all" && i.sceneName !== filterScene) return false;
     if (filterChar !== "all" && i.character !== filterChar) return false;
+    if (filterType !== "all" && typeOf(i) !== filterType) return false;
     if (search.trim() && !i.prompt.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
-  }), [items, filterScene, filterChar, search]);
+  }), [items, filterScene, filterChar, filterType, search]);
 
   const allSelected = filtered.length > 0 && filtered.every((i) => selected.has(i.id));
   const toggleAll = () => {
@@ -101,7 +111,7 @@ function GalleryPage() {
   const downloadOne = async (id: string) => {
     const full = await getGalleryItem(id);
     if (!full) return;
-    const ext = full.mimeType.split("/")[1] || "png";
+    const ext = extOf(full.mimeType, full.type);
     saveAs(full.blob, `grok-${id}.${ext}`);
   };
 
@@ -115,7 +125,7 @@ function GalleryPage() {
   const [showCleanupAfter, setShowCleanupAfter] = useState(false);
 
   const downloadSelectedZip = async () => {
-    if (!selected.size) return toast.error("请先勾选图片");
+    if (!selected.size) return toast.error("请先勾选项目");
     setZipping(true);
     setZipProgress(0);
     const zip = new JSZip();
@@ -123,8 +133,9 @@ function GalleryPage() {
     for (let i = 0; i < ids.length; i++) {
       const full = await getGalleryItem(ids[i]);
       if (full) {
-        const ext = full.mimeType.split("/")[1] || "png";
-        const safe = (full.sceneName || "scene").replace(/[^\w\u4e00-\u9fa5-]/g, "_");
+        const ext = extOf(full.mimeType, full.type);
+        const folder = full.type === "video" ? "videos" : (full.sceneName || "images");
+        const safe = folder.replace(/[^\w\u4e00-\u9fa5-]/g, "_");
         zip.file(`${safe}/${full.id}.${ext}`, full.blob);
       }
       setZipProgress(Math.round(((i + 1) / ids.length) * 100));
@@ -139,19 +150,23 @@ function GalleryPage() {
     if (!selected.size) return;
     await deleteGalleryItems(Array.from(selected));
     setSelected(new Set());
-    toast.success("已删除选中图片");
+    toast.success("已删除选中项目");
     refresh();
+  };
+
+  const openPreview = (url: string, type: "image" | "video") => {
+    setPreviewUrl(url);
+    setPreviewType(type);
   };
 
   return (
     <div className="mx-auto max-w-[1500px] px-4 py-8 md:px-8">
       <PageHeader
         title="画廊"
-        description="所有生成的图片永久保存在浏览器（IndexedDB），关闭页面也不会丢失。"
+        description="所有生成的图片与视频永久保存在浏览器（IndexedDB），关闭页面也不会丢失。"
         icon={Images}
       />
 
-      {/* Storage bar */}
       {storage && storage.quota > 0 && (
         <div className="mb-4 rounded-xl border border-border/60 bg-card p-3 text-xs">
           <div className="mb-1 flex items-center justify-between">
@@ -164,8 +179,18 @@ function GalleryPage() {
         </div>
       )}
 
-      {/* Filters & actions */}
       <div className="mb-4 flex flex-wrap items-end gap-3 rounded-xl border border-border/60 bg-card p-4">
+        <div className="space-y-1">
+          <Label className="text-xs uppercase tracking-wider text-muted-foreground">类型</Label>
+          <Select value={filterType} onValueChange={setFilterType}>
+            <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部</SelectItem>
+              <SelectItem value="image">图片</SelectItem>
+              <SelectItem value="video">视频</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         <div className="space-y-1">
           <Label className="text-xs uppercase tracking-wider text-muted-foreground">场景</Label>
           <Select value={filterScene} onValueChange={setFilterScene}>
@@ -218,7 +243,7 @@ function GalleryPage() {
               <AlertDialogHeader>
                 <AlertDialogTitle>清空整个画廊？</AlertDialogTitle>
                 <AlertDialogDescription>
-                  将删除全部 {items.length} 张图片，此操作不可撤销。
+                  将删除全部 {items.length} 个项目，此操作不可撤销。
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -243,13 +268,14 @@ function GalleryPage() {
 
       {filtered.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border/60 bg-card/50 p-12 text-center text-sm text-muted-foreground">
-          {items.length === 0 ? "还没有图片，去生成一些吧～" : "当前筛选条件下没有图片"}
+          {items.length === 0 ? "还没有内容，去生成一些吧～" : "当前筛选条件下没有内容"}
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {filtered.map((it) => {
             const url = urlCache[it.id];
             const isSel = selected.has(it.id);
+            const t = typeOf(it);
             return (
               <div
                 key={it.id}
@@ -264,8 +290,33 @@ function GalleryPage() {
                 >
                   {isSel ? <CheckSquare className="h-4 w-4 text-primary-glow" /> : <Square className="h-4 w-4" />}
                 </button>
+                {t === "video" && (
+                  <span className="absolute right-2 top-2 z-10 rounded-md bg-background/80 px-1.5 py-0.5 text-[10px] font-mono backdrop-blur">
+                    VIDEO{it.duration ? ` · ${it.duration}s` : ""}
+                  </span>
+                )}
                 {url ? (
-                  <img src={url} alt={it.prompt} className="aspect-square w-full object-cover" loading="lazy" />
+                  t === "video" ? (
+                    <div
+                      className="relative aspect-square w-full cursor-pointer bg-black"
+                      onClick={() => openPreview(url, "video")}
+                    >
+                      <video
+                        src={url}
+                        muted
+                        playsInline
+                        preload="metadata"
+                        className="h-full w-full object-cover"
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/30">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/90 shadow-glow">
+                          <Play className="h-6 w-6 fill-primary-foreground text-primary-foreground" />
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <img src={url} alt={it.prompt} className="aspect-square w-full object-cover" loading="lazy" />
+                  )
                 ) : (
                   <div className="aspect-square w-full animate-pulse bg-surface" />
                 )}
@@ -277,7 +328,7 @@ function GalleryPage() {
                   <p className="line-clamp-2 text-foreground/80">{it.prompt}</p>
                 </div>
                 <div className="absolute inset-x-0 bottom-0 flex justify-end gap-1 bg-gradient-to-t from-background/95 to-transparent p-2 opacity-0 transition group-hover:opacity-100">
-                  <Button size="icon" variant="secondary" className="h-7 w-7" onClick={() => url && setPreviewUrl(url)}>
+                  <Button size="icon" variant="secondary" className="h-7 w-7" onClick={() => url && openPreview(url, t)}>
                     <Maximize2 className="h-3.5 w-3.5" />
                   </Button>
                   <Button size="icon" variant="secondary" className="h-7 w-7" onClick={() => copyPrompt(it.prompt)}>
@@ -301,17 +352,22 @@ function GalleryPage() {
 
       <Dialog open={!!previewUrl} onOpenChange={(o) => !o && setPreviewUrl(null)}>
         <DialogContent className="max-w-5xl border-border/60 bg-background p-2">
-          <DialogTitle className="sr-only">图片预览</DialogTitle>
-          {previewUrl && <img src={previewUrl} alt="预览" className="max-h-[85vh] w-full rounded-lg object-contain" />}
+          <DialogTitle className="sr-only">预览</DialogTitle>
+          {previewUrl && previewType === "image" && (
+            <img src={previewUrl} alt="预览" className="max-h-[85vh] w-full rounded-lg object-contain" />
+          )}
+          {previewUrl && previewType === "video" && (
+            <video src={previewUrl} controls autoPlay className="max-h-[85vh] w-full rounded-lg" />
+          )}
         </DialogContent>
       </Dialog>
 
       <AlertDialog open={showCleanupAfter} onOpenChange={setShowCleanupAfter}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>清除已下载图片？</AlertDialogTitle>
+            <AlertDialogTitle>清除已下载内容？</AlertDialogTitle>
             <AlertDialogDescription>
-              已成功打包下载 {selected.size} 张。是否从浏览器存储中删除它们以释放空间？
+              已成功打包下载 {selected.size} 项。是否从浏览器存储中删除它们以释放空间？
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -321,7 +377,7 @@ function GalleryPage() {
               setSelected(new Set());
               setShowCleanupAfter(false);
               refresh();
-              toast.success("已清除已下载图片");
+              toast.success("已清除已下载内容");
             }}>
               清除
             </AlertDialogAction>
