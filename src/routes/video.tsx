@@ -26,10 +26,12 @@ export const Route = createFileRoute("/video")({
 });
 
 function VideoPage() {
+  const { settings } = useSettings();
   const [prompt, setPrompt] = useState("");
   const [duration, setDuration] = useState(6);
   const [aspect, setAspect] = useState("16:9");
   const [resolution, setResolution] = useState<"480p" | "720p">("480p");
+  const [model, setModel] = useState(settings.videoModel);
   const [startImage, setStartImage] = useState<string[]>([]);
   const [refImages, setRefImages] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -47,6 +49,7 @@ function VideoPage() {
         duration,
         aspect_ratio: aspect,
         resolution,
+        model,
         image: startImage[0],
         reference_images: refImages.length ? refImages : undefined,
       });
@@ -132,6 +135,7 @@ function VideoPage() {
           </div>
           <AspectRatioSelect value={aspect} onChange={setAspect} />
           <ResolutionSelect value={resolution} onChange={(v) => setResolution(v as "480p" | "720p")} options={["480p", "720p"]} />
+          <VideoModelSelect value={model} onChange={setModel} />
         </aside>
       </div>
     </div>
