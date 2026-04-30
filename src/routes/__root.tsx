@@ -1,4 +1,7 @@
 import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { AppSidebar } from "@/components/app-sidebar";
+import { Toaster } from "@/components/ui/sonner";
 
 import appCss from "../styles.css?url";
 
@@ -68,5 +71,24 @@ function RootShell({ children }: { children: React.ReactNode }) {
 }
 
 function RootComponent() {
-  return <Outlet />;
+  return (
+    <SidebarProvider>
+      <div className="flex min-h-screen w-full">
+        <AppSidebar />
+        <div className="flex min-h-screen flex-1 flex-col">
+          <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border/60 bg-background/70 px-4 backdrop-blur-xl">
+            <SidebarTrigger />
+            <div className="h-5 w-px bg-border/60" />
+            <span className="font-display text-sm font-medium tracking-tight text-muted-foreground">
+              Grok Studio · 浏览器端 xAI 创作工作台
+            </span>
+          </header>
+          <main className="flex-1">
+            <Outlet />
+          </main>
+          <Toaster />
+        </div>
+      </div>
+    </SidebarProvider>
+  );
 }
