@@ -43,8 +43,7 @@ function GalleryPage() {
   const [storage, setStorage] = useState<{ usage: number; quota: number } | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [urlCache, setUrlCache] = useState<Record<string, string>>({});
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [previewType, setPreviewType] = useState<"image" | "video">("image");
+  const [previewId, setPreviewId] = useState<string | null>(null);
   const [filterScene, setFilterScene] = useState<string>("all");
   const [filterChar, setFilterChar] = useState<string>("all");
   const [filterType, setFilterType] = useState<string>("all");
