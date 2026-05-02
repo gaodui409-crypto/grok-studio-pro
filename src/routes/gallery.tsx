@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
-import { Images, Trash2, Download, Copy, Maximize2, CheckSquare, Square, AlertTriangle, Play } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Images, Trash2, Download, Copy, Maximize2, CheckSquare, Square, AlertTriangle, Play, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
