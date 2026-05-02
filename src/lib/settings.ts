@@ -14,6 +14,7 @@ export type Settings = {
   defaultAspectRatio: string;
   imageModel: string;
   videoModel: string;
+  concurrency: number;
 };
 
 const KEY = "grok-studio-settings";
@@ -25,6 +26,7 @@ export const defaultSettings: Settings = {
   defaultAspectRatio: "1:1",
   imageModel: "grok-imagine-image-pro",
   videoModel: "grok-imagine-video",
+  concurrency: 3,
 };
 
 export function loadSettings(): Settings {
@@ -32,7 +34,10 @@ export function loadSettings(): Settings {
   try {
     const raw = localStorage.getItem(KEY);
     if (!raw) return defaultSettings;
-    return { ...defaultSettings, ...JSON.parse(raw) };
+    const merged = { ...defaultSettings, ...JSON.parse(raw) };
+    // clamp concurrency
+    merged.concurrency = Math.max(1, Math.min(10, Number(merged.concurrency) || 3));
+    return merged;
   } catch {
     return defaultSettings;
   }

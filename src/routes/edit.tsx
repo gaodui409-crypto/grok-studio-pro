@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
 import { Wand2, Sparkles, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -11,9 +10,9 @@ import { ApiKeyBanner } from "@/components/api-key-banner";
 import { ImageGallery } from "@/components/image-gallery";
 import { ImageUpload } from "@/components/image-upload";
 import { ResolutionSelect, ImageModelSelect } from "@/components/param-selects";
-import { useSettings } from "@/hooks/use-settings";
-import { editImages, type GeneratedImage } from "@/lib/xai";
+import { editImages } from "@/lib/xai";
 import { addGalleryFromUrl } from "@/lib/gallery-db";
+import { useAppStore } from "@/lib/app-store";
 
 export const Route = createFileRoute("/edit")({
   head: () => ({
@@ -26,22 +25,17 @@ export const Route = createFileRoute("/edit")({
 });
 
 function EditPage() {
-  const { settings } = useSettings();
-  const [images, setImages] = useState<string[]>([]);
-  const [prompt, setPrompt] = useState("");
-  const [n, setN] = useState(1);
-  const [resolution, setResolution] = useState<"1k" | "2k">(settings.defaultResolution);
-  const [model, setModel] = useState(settings.imageModel);
-  const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState<GeneratedImage[]>([]);
+  const i2i = useAppStore((s) => s.i2i);
+  const set = useAppStore((s) => s.setI2I);
+  const { images, prompt, n, resolution, model, loading, results } = i2i;
 
   const handleGenerate = async () => {
     if (!images.length) return toast.error("请上传至少一张图片");
     if (!prompt.trim()) return toast.error("请输入编辑指令");
-    setLoading(true);
+    set({ loading: true });
     try {
       const data = await editImages({ prompt, images, n, resolution, model });
-      setResults(data);
+      set({ results: data });
       toast.success(`已生成 ${data.length} 张图片`);
       Promise.all(data.map((img) =>
         addGalleryFromUrl(img.url, { prompt, model, sceneName: "图生图" }),
@@ -51,7 +45,7 @@ function EditPage() {
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
-      setLoading(false);
+      set({ loading: false });
     }
   };
 
@@ -64,13 +58,13 @@ function EditPage() {
         <div className="space-y-5 rounded-2xl border border-border/60 bg-card p-5 shadow-card">
           <div className="space-y-2">
             <Label>参考图（最多 4 张）</Label>
-            <ImageUpload values={images} onChange={setImages} max={4} />
+            <ImageUpload values={images} onChange={(v) => set({ images: v })} max={4} />
           </div>
           <div className="space-y-2">
             <Label>编辑指令</Label>
             <Textarea
               value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
+              onChange={(e) => set({ prompt: e.target.value })}
               placeholder={
                 images.length > 1
                   ? "例如：把 <IMAGE_0> 中的人物放到 <IMAGE_1> 的背景里，统一光影"
@@ -91,10 +85,10 @@ function EditPage() {
           <h3 className="font-display text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">参数</h3>
           <div className="space-y-1.5">
             <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">数量 (1–10)</Label>
-            <Input type="number" min={1} max={10} value={n} onChange={(e) => setN(Math.min(10, Math.max(1, +e.target.value || 1)))} />
+            <Input type="number" min={1} max={10} value={n} onChange={(e) => set({ n: Math.min(10, Math.max(1, +e.target.value || 1)) })} />
           </div>
-          <ResolutionSelect value={resolution} onChange={(v) => setResolution(v as "1k" | "2k")} />
-          <ImageModelSelect value={model} onChange={setModel} />
+          <ResolutionSelect value={resolution} onChange={(v) => set({ resolution: v as "1k" | "2k" })} />
+          <ImageModelSelect value={model} onChange={(v) => set({ model: v })} />
         </aside>
       </div>
 

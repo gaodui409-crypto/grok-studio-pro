@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useRef, useState } from "react";
+import { useRef } from "react";
 import { BookOpen, Sparkles, Loader2, Download, Upload, X, ArrowUp, ArrowDown, Eye } from "lucide-react";
 import { toast } from "sonner";
 import JSZip from "jszip";
@@ -19,6 +19,9 @@ import { ImageModelSelect } from "@/components/param-selects";
 import { useSettings } from "@/hooks/use-settings";
 import { editImages, chatCompletion, fileToDataUri } from "@/lib/xai";
 import { addGalleryFromUrl } from "@/lib/gallery-db";
+import { runWithConcurrency } from "@/lib/concurrency";
+import { useAppStore, type ComicPageItem } from "@/lib/app-store";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/comic")({
@@ -46,21 +49,9 @@ const LANG_PRESETS = [
   { from: "中文", to: "英语" },
 ];
 
-type PageItem = {
-  id: string;
-  name: string;
-  src: string; // data URI
-  resultUrl?: string;
-  status: "pending" | "running" | "done" | "failed";
-  step?: string;
-  translation?: string;
-  error?: string;
-};
-
 function ComicPage() {
-  const { settings } = useSettings();
-  const [tab, setTab] = useState<"colorize" | "translate">("colorize");
-  const [model, setModel] = useState(settings.imageModel);
+  const c = useAppStore((s) => s.comic);
+  const set = useAppStore((s) => s.setComic);
 
   return (
     <div className="mx-auto max-w-[1500px] px-4 py-8 md:px-8">
@@ -71,16 +62,16 @@ function ComicPage() {
       />
       <ApiKeyBanner />
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as "colorize" | "translate")} className="mb-4">
+      <Tabs value={c.tab} onValueChange={(v) => set({ tab: v as "colorize" | "translate" })} className="mb-4">
         <TabsList className="grid w-full max-w-md grid-cols-2">
           <TabsTrigger value="colorize">漫画上色</TabsTrigger>
           <TabsTrigger value="translate">漫画翻译</TabsTrigger>
         </TabsList>
         <TabsContent value="colorize" className="mt-4">
-          <ColorizePanel model={model} setModel={setModel} />
+          <ColorizePanel />
         </TabsContent>
         <TabsContent value="translate" className="mt-4">
-          <TranslatePanel model={model} setModel={setModel} />
+          <TranslatePanel />
         </TabsContent>
       </Tabs>
     </div>
@@ -94,16 +85,16 @@ function PageList({
   onChange,
   onPreview,
 }: {
-  pages: PageItem[];
-  onChange: (p: PageItem[]) => void;
-  onPreview: (p: PageItem) => void;
+  pages: ComicPageItem[];
+  onChange: (p: ComicPageItem[]) => void;
+  onPreview: (p: ComicPageItem) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleFiles = async (files: FileList | null) => {
     if (!files?.length) return;
     const arr = Array.from(files);
-    const newPages: PageItem[] = await Promise.all(
+    const newPages: ComicPageItem[] = await Promise.all(
       arr.map(async (f) => ({
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         name: f.name,
@@ -189,45 +180,29 @@ function PageList({
   );
 }
 
-// ======================= Concurrency helper =======================
-
-async function runWithConcurrency<T>(
-  items: T[],
-  worker: (item: T, idx: number) => Promise<void>,
-  concurrency = 3,
-) {
-  let cursor = 0;
-  const run = async () => {
-    while (cursor < items.length) {
-      const my = cursor++;
-      await worker(items[my], my);
-    }
-  };
-  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, run));
-}
-
 // ======================= Colorize panel =======================
 
-function ColorizePanel({ model, setModel }: { model: string; setModel: (v: string) => void }) {
-  const [pages, setPages] = useState<PageItem[]>([]);
-  const [styleSel, setStyleSel] = useState<string>(COLOR_STYLES[0]);
-  const [customStyle, setCustomStyle] = useState("");
-  const [refImage, setRefImage] = useState<string[]>([]);
-  const [running, setRunning] = useState(false);
-  const [done, setDone] = useState(0);
-  const [previewPage, setPreviewPage] = useState<PageItem | null>(null);
+function ColorizePanel() {
+  const { settings } = useSettings();
+  const c = useAppStore((s) => s.comic);
+  const set = useAppStore((s) => s.setComic);
+  const patch = useAppStore((s) => s.patchComic);
+  const [previewPage, setPreviewPage] = useState<ComicPageItem | null>(null);
 
+  const { colorPages: pages, styleSel, customStyle, refImage, colorRunning: running, colorDone: done, model } = c;
   const styleText = styleSel === "自定义" ? customStyle.trim() : styleSel;
 
-  const updatePage = (id: string, patch: Partial<PageItem>) =>
-    setPages((p) => p.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+  const updatePage = (id: string, p: Partial<ComicPageItem>) =>
+    patch((s) => ({ ...s, colorPages: s.colorPages.map((x) => (x.id === id ? { ...x, ...p } : x)) }));
 
   const handleRun = async () => {
     if (!pages.length) return toast.error("请上传漫画页");
     if (!styleText) return toast.error("请选择或输入上色风格");
-    setRunning(true);
-    setDone(0);
-    setPages((ps) => ps.map((p) => ({ ...p, status: "pending", resultUrl: undefined, error: undefined })));
+    set({ colorRunning: true, colorDone: 0 });
+    patch((s) => ({
+      ...s,
+      colorPages: s.colorPages.map((p) => ({ ...p, status: "pending", resultUrl: undefined, error: undefined })),
+    }));
 
     await runWithConcurrency(pages, async (page) => {
       updatePage(page.id, { status: "running", step: "上色中…" });
@@ -247,11 +222,11 @@ function ColorizePanel({ model, setModel }: { model: string; setModel: (v: strin
         updatePage(page.id, { status: "failed", error: (e as Error).message });
         toast.error(`第 ${page.name} 失败：${(e as Error).message}`);
       } finally {
-        setDone((d) => d + 1);
+        patch((s) => ({ ...s, colorDone: s.colorDone + 1 }));
       }
-    }, 3);
+    }, settings.concurrency);
 
-    setRunning(false);
+    set({ colorRunning: false });
     toast.success("上色任务完成");
   };
 
@@ -273,12 +248,12 @@ function ColorizePanel({ model, setModel }: { model: string; setModel: (v: strin
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
       <div className="space-y-5 rounded-2xl border border-border/60 bg-card p-5 shadow-card">
-        <PageList pages={pages} onChange={setPages} onPreview={setPreviewPage} />
+        <PageList pages={pages} onChange={(p) => set({ colorPages: p })} onPreview={setPreviewPage} />
 
         {(running || done > 0) && (
           <div className="space-y-2 rounded-xl border border-border/60 bg-surface/60 p-3 text-sm">
             <div className="flex justify-between">
-              <span>进度：{done} / {pages.length}</span>
+              <span>进度：{done} / {pages.length} · 并发 {settings.concurrency}</span>
               <span className="font-mono text-primary-glow">{pages.length ? Math.round((done / pages.length) * 100) : 0}%</span>
             </div>
             <Progress value={pages.length ? (done / pages.length) * 100 : 0} />
@@ -300,7 +275,7 @@ function ColorizePanel({ model, setModel }: { model: string; setModel: (v: strin
         <h3 className="font-display text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">参数</h3>
         <div className="space-y-1.5">
           <Label className="text-xs uppercase tracking-wider text-muted-foreground">上色风格</Label>
-          <Select value={styleSel} onValueChange={setStyleSel}>
+          <Select value={styleSel} onValueChange={(v) => set({ styleSel: v })}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               {COLOR_STYLES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
@@ -308,14 +283,14 @@ function ColorizePanel({ model, setModel }: { model: string; setModel: (v: strin
             </SelectContent>
           </Select>
           {styleSel === "自定义" && (
-            <Input value={customStyle} onChange={(e) => setCustomStyle(e.target.value)} placeholder="例如：90 年代港漫复古色" />
+            <Input value={customStyle} onChange={(e) => set({ customStyle: e.target.value })} placeholder="例如：90 年代港漫复古色" />
           )}
         </div>
         <div className="space-y-1.5">
           <Label className="text-xs uppercase tracking-wider text-muted-foreground">配色参考图（可选）</Label>
-          <ImageUpload values={refImage} onChange={setRefImage} max={1} label="上传参考图" />
+          <ImageUpload values={refImage} onChange={(v) => set({ refImage: v })} max={1} label="上传参考图" />
         </div>
-        <ImageModelSelect value={model} onChange={setModel} />
+        <ImageModelSelect value={model} onChange={(v) => set({ model: v })} />
       </aside>
 
       <PreviewDialog page={previewPage} onClose={() => setPreviewPage(null)} />
@@ -325,32 +300,32 @@ function ColorizePanel({ model, setModel }: { model: string; setModel: (v: strin
 
 // ======================= Translate panel =======================
 
-function TranslatePanel({ model, setModel }: { model: string; setModel: (v: string) => void }) {
-  const [pages, setPages] = useState<PageItem[]>([]);
-  const [preset, setPreset] = useState<string>("0");
-  const [customFrom, setCustomFrom] = useState("");
-  const [customTo, setCustomTo] = useState("");
-  const [running, setRunning] = useState(false);
-  const [done, setDone] = useState(0);
-  const [previewPage, setPreviewPage] = useState<PageItem | null>(null);
+function TranslatePanel() {
+  const { settings } = useSettings();
+  const c = useAppStore((s) => s.comic);
+  const set = useAppStore((s) => s.setComic);
+  const patch = useAppStore((s) => s.patchComic);
+  const [previewPage, setPreviewPage] = useState<ComicPageItem | null>(null);
 
+  const { translatePages: pages, preset, customFrom, customTo, translateRunning: running, translateDone: done, model } = c;
   const langs = preset === "custom"
     ? { from: customFrom.trim(), to: customTo.trim() }
     : LANG_PRESETS[Number(preset)];
 
-  const updatePage = (id: string, patch: Partial<PageItem>) =>
-    setPages((p) => p.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+  const updatePage = (id: string, p: Partial<ComicPageItem>) =>
+    patch((s) => ({ ...s, translatePages: s.translatePages.map((x) => (x.id === id ? { ...x, ...p } : x)) }));
 
   const handleRun = async () => {
     if (!pages.length) return toast.error("请上传漫画页");
     if (!langs.from || !langs.to) return toast.error("请填写源语言和目标语言");
-    setRunning(true);
-    setDone(0);
-    setPages((ps) => ps.map((p) => ({ ...p, status: "pending", resultUrl: undefined, translation: undefined, error: undefined })));
+    set({ translateRunning: true, translateDone: 0 });
+    patch((s) => ({
+      ...s,
+      translatePages: s.translatePages.map((p) => ({ ...p, status: "pending", resultUrl: undefined, translation: undefined, error: undefined })),
+    }));
 
     await runWithConcurrency(pages, async (page) => {
       try {
-        // Step 1: OCR + translate
         updatePage(page.id, { status: "running", step: "识别中…" });
         const ocrPrompt = `这是一页漫画，请识别图中所有文字气泡/对话框中的${langs.from}文字，翻译为${langs.to}。按顺序列出每个气泡的原文和译文，格式：\n气泡1：原文｜译文\n气泡2：原文｜译文\n...`;
         const translation = await chatCompletion({
@@ -367,7 +342,6 @@ function TranslatePanel({ model, setModel }: { model: string; setModel: (v: stri
         });
         updatePage(page.id, { translation, step: "嵌入中…" });
 
-        // Step 2: embed translation back into image
         const embedPrompt = `将这张漫画中的所有文字替换为以下${langs.to}翻译，保持气泡位置和大小不变，字体清晰可读：\n${translation}`;
         const data = await editImages({ prompt: embedPrompt, images: [page.src], n: 1, model });
         const img = data[0];
@@ -380,11 +354,11 @@ function TranslatePanel({ model, setModel }: { model: string; setModel: (v: stri
         updatePage(page.id, { status: "failed", error: (e as Error).message });
         toast.error(`${page.name} 失败：${(e as Error).message}`);
       } finally {
-        setDone((d) => d + 1);
+        patch((s) => ({ ...s, translateDone: s.translateDone + 1 }));
       }
-    }, 3);
+    }, settings.concurrency);
 
-    setRunning(false);
+    set({ translateRunning: false });
     toast.success("翻译任务完成");
   };
 
@@ -409,12 +383,12 @@ function TranslatePanel({ model, setModel }: { model: string; setModel: (v: stri
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
       <div className="space-y-5 rounded-2xl border border-border/60 bg-card p-5 shadow-card">
-        <PageList pages={pages} onChange={setPages} onPreview={setPreviewPage} />
+        <PageList pages={pages} onChange={(p) => set({ translatePages: p })} onPreview={setPreviewPage} />
 
         {(running || done > 0) && (
           <div className="space-y-2 rounded-xl border border-border/60 bg-surface/60 p-3 text-sm">
             <div className="flex justify-between">
-              <span>进度：{done} / {pages.length}</span>
+              <span>进度：{done} / {pages.length} · 并发 {settings.concurrency}</span>
               <span className="font-mono text-primary-glow">{pages.length ? Math.round((done / pages.length) * 100) : 0}%</span>
             </div>
             <Progress value={pages.length ? (done / pages.length) * 100 : 0} />
@@ -436,7 +410,7 @@ function TranslatePanel({ model, setModel }: { model: string; setModel: (v: stri
         <h3 className="font-display text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">参数</h3>
         <div className="space-y-1.5">
           <Label className="text-xs uppercase tracking-wider text-muted-foreground">语言</Label>
-          <Select value={preset} onValueChange={setPreset}>
+          <Select value={preset} onValueChange={(v) => set({ preset: v })}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>
               {LANG_PRESETS.map((l, i) => (
@@ -447,12 +421,12 @@ function TranslatePanel({ model, setModel }: { model: string; setModel: (v: stri
           </Select>
           {preset === "custom" && (
             <div className="grid grid-cols-2 gap-2 pt-2">
-              <Input value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} placeholder="源语言" />
-              <Input value={customTo} onChange={(e) => setCustomTo(e.target.value)} placeholder="目标语言" />
+              <Input value={customFrom} onChange={(e) => set({ customFrom: e.target.value })} placeholder="源语言" />
+              <Input value={customTo} onChange={(e) => set({ customTo: e.target.value })} placeholder="目标语言" />
             </div>
           )}
         </div>
-        <ImageModelSelect value={model} onChange={setModel} />
+        <ImageModelSelect value={model} onChange={(v) => set({ model: v })} />
         <p className="text-[11px] text-muted-foreground">
           先用 grok-4 识别+翻译文字，再用图片编辑模型把译文嵌回原图。每页 2 步。
         </p>
@@ -463,9 +437,7 @@ function TranslatePanel({ model, setModel }: { model: string; setModel: (v: stri
   );
 }
 
-// ======================= Preview dialog =======================
-
-function PreviewDialog({ page, onClose }: { page: PageItem | null; onClose: () => void }) {
+function PreviewDialog({ page, onClose }: { page: ComicPageItem | null; onClose: () => void }) {
   return (
     <Dialog open={!!page} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-3xl border-border/60 bg-background">

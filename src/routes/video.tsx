@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
 import { Film, Sparkles, Loader2, Download } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -8,18 +7,17 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { Progress } from "@/components/ui/progress";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/page-header";
 import { ApiKeyBanner } from "@/components/api-key-banner";
 import { ImageUpload } from "@/components/image-upload";
 import { AspectRatioSelect, ResolutionSelect, VideoModelSelect } from "@/components/param-selects";
-import { useSettings } from "@/hooks/use-settings";
 import {
   generateVideo, editVideo, extendVideo, pollVideo, fileToDataUri,
-  type VideoStatus,
 } from "@/lib/xai";
 import { addGalleryFromUrl } from "@/lib/gallery-db";
 import { downloadOne } from "@/lib/download";
+import { useAppStore, type VideoSubMode } from "@/lib/app-store";
 
 export const Route = createFileRoute("/video")({
   head: () => ({
@@ -31,9 +29,7 @@ export const Route = createFileRoute("/video")({
   component: VideoPage,
 });
 
-type SubMode = "t2v" | "i2v" | "edit" | "extend";
-
-const SUB_LABEL: Record<SubMode, string> = {
+const SUB_LABEL: Record<VideoSubMode, string> = {
   t2v: "文生视频",
   i2v: "图生视频",
   edit: "视频编辑",
@@ -41,44 +37,35 @@ const SUB_LABEL: Record<SubMode, string> = {
 };
 
 function VideoPage() {
-  const { settings } = useSettings();
-  const [subMode, setSubMode] = useState<SubMode>("t2v");
-  const [prompt, setPrompt] = useState("");
-  const [duration, setDuration] = useState(6);
-  const [extendDuration, setExtendDuration] = useState(6);
-  const [aspect, setAspect] = useState("16:9");
-  const [resolution, setResolution] = useState<"480p" | "720p">("480p");
-  const [model, setModel] = useState(settings.videoModel);
-  const [startImage, setStartImage] = useState<string[]>([]);
-  const [refImages, setRefImages] = useState<string[]>([]);
+  const v = useAppStore((s) => s.video);
+  const set = useAppStore((s) => s.setVideo);
+  const {
+    subMode, prompt, duration, extendDuration, aspect, resolution, model,
+    startImage, refImages, sourceVideoUrl, sourceVideoDataUri, sourceVideoName,
+    loading, status, videoUrl,
+  } = v;
 
-  // For edit / extend modes
-  const [sourceVideoUrl, setSourceVideoUrl] = useState<string>("");
-  const [sourceVideoFile, setSourceVideoFile] = useState<File | null>(null);
-
-  const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState<VideoStatus | null>(null);
-  const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const onSourceFile = async (f: File | null) => {
+    if (!f) {
+      set({ sourceVideoDataUri: "", sourceVideoName: "" });
+      return;
+    }
+    const uri = await fileToDataUri(f);
+    set({ sourceVideoDataUri: uri, sourceVideoName: f.name });
+  };
 
   const handleGenerate = async () => {
     if (!prompt.trim()) return toast.error("请输入提示词");
-    if ((subMode === "edit" || subMode === "extend") && !sourceVideoUrl && !sourceVideoFile) {
+    if ((subMode === "edit" || subMode === "extend") && !sourceVideoUrl && !sourceVideoDataUri) {
       return toast.error("请先上传或填入源视频 URL");
     }
     if (subMode === "i2v" && !startImage.length) {
       return toast.error("图生视频请上传起始帧图片");
     }
 
-    setLoading(true);
-    setStatus(null);
-    setVideoUrl(null);
+    set({ loading: true, status: null, videoUrl: null });
     try {
-      // Resolve source video to a URL string (data URI for uploads)
-      let videoSrc = sourceVideoUrl.trim();
-      if ((subMode === "edit" || subMode === "extend") && sourceVideoFile) {
-        videoSrc = await fileToDataUri(sourceVideoFile);
-      }
-
+      const videoSrc = sourceVideoDataUri || sourceVideoUrl.trim();
       let request_id: string;
       let usedDuration = duration;
       if (subMode === "t2v") {
@@ -101,10 +88,10 @@ function VideoPage() {
       }
 
       toast.info(`任务已提交：${request_id}`);
-      const { promise } = pollVideo(request_id, (s) => setStatus(s));
+      const { promise } = pollVideo(request_id, (s) => set({ status: s }));
       const final = await promise;
       if (final.status === "done" && final.video?.url) {
-        setVideoUrl(final.video.url);
+        set({ videoUrl: final.video.url });
         toast.success("视频生成完成");
         addGalleryFromUrl(final.video.url, {
           prompt,
@@ -121,7 +108,7 @@ function VideoPage() {
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
-      setLoading(false);
+      set({ loading: false });
     }
   };
 
@@ -136,7 +123,7 @@ function VideoPage() {
       />
       <ApiKeyBanner />
 
-      <Tabs value={subMode} onValueChange={(v) => setSubMode(v as SubMode)} className="mb-4">
+      <Tabs value={subMode} onValueChange={(val) => set({ subMode: val as VideoSubMode })} className="mb-4">
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="t2v">文生视频</TabsTrigger>
           <TabsTrigger value="i2v">图生视频</TabsTrigger>
@@ -151,7 +138,7 @@ function VideoPage() {
             <Label>提示词</Label>
             <Textarea
               value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
+              onChange={(e) => set({ prompt: e.target.value })}
               placeholder={
                 subMode === "extend"
                   ? "描述视频接下来发生的内容，例如：镜头慢慢推近，主角抬头微笑"
@@ -167,11 +154,11 @@ function VideoPage() {
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label>起始帧（必需）</Label>
-                <ImageUpload values={startImage} onChange={setStartImage} max={1} label="上传起始图" />
+                <ImageUpload values={startImage} onChange={(v) => set({ startImage: v })} max={1} label="上传起始图" />
               </div>
               <div className="space-y-2">
                 <Label>参考图（最多 7 张，可选）</Label>
-                <ImageUpload values={refImages} onChange={setRefImages} max={7} label="上传参考图" />
+                <ImageUpload values={refImages} onChange={(v) => set({ refImages: v })} max={7} label="上传参考图" />
               </div>
             </div>
           )}
@@ -183,21 +170,24 @@ function VideoPage() {
                 <Input
                   type="file"
                   accept="video/mp4"
-                  onChange={(e) => setSourceVideoFile(e.target.files?.[0] ?? null)}
+                  onChange={(e) => onSourceFile(e.target.files?.[0] ?? null)}
                 />
-                {sourceVideoFile && (
-                  <video
-                    src={URL.createObjectURL(sourceVideoFile)}
-                    controls
-                    className="w-full rounded-lg border border-border/60"
-                  />
+                {sourceVideoDataUri && (
+                  <>
+                    <p className="text-xs text-muted-foreground">已加载：{sourceVideoName}</p>
+                    <video
+                      src={sourceVideoDataUri}
+                      controls
+                      className="w-full rounded-lg border border-border/60"
+                    />
+                  </>
                 )}
               </div>
               <div className="space-y-2">
                 <Label>或：粘贴视频 URL</Label>
                 <Input
                   value={sourceVideoUrl}
-                  onChange={(e) => setSourceVideoUrl(e.target.value)}
+                  onChange={(e) => set({ sourceVideoUrl: e.target.value })}
                   placeholder="https://…/video.mp4"
                 />
               </div>
@@ -245,7 +235,7 @@ function VideoPage() {
                 <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">延长时长</Label>
                 <span className="text-sm font-mono text-primary-glow">{extendDuration}s</span>
               </div>
-              <Slider min={2} max={10} step={1} value={[extendDuration]} onValueChange={(v) => setExtendDuration(v[0])} />
+              <Slider min={2} max={10} step={1} value={[extendDuration]} onValueChange={(v) => set({ extendDuration: v[0] })} />
               <p className="text-[11px] text-muted-foreground">范围 2–10 秒，输出比例和分辨率继承源视频</p>
             </div>
           ) : subMode === "edit" ? (
@@ -257,14 +247,14 @@ function VideoPage() {
                   <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">时长</Label>
                   <span className="text-sm font-mono text-primary-glow">{duration}s</span>
                 </div>
-                <Slider min={1} max={15} step={1} value={[duration]} onValueChange={(v) => setDuration(v[0])} />
+                <Slider min={1} max={15} step={1} value={[duration]} onValueChange={(v) => set({ duration: v[0] })} />
               </div>
-              <AspectRatioSelect value={aspect} onChange={setAspect} />
-              <ResolutionSelect value={resolution} onChange={(v) => setResolution(v as "480p" | "720p")} options={["480p", "720p"]} />
+              <AspectRatioSelect value={aspect} onChange={(v) => set({ aspect: v })} />
+              <ResolutionSelect value={resolution} onChange={(v) => set({ resolution: v as "480p" | "720p" })} options={["480p", "720p"]} />
             </>
           )}
 
-          <VideoModelSelect value={model} onChange={setModel} />
+          <VideoModelSelect value={model} onChange={(v) => set({ model: v })} />
         </aside>
       </div>
     </div>

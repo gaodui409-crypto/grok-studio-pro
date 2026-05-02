@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
-import { Images, Trash2, Download, Copy, Maximize2, CheckSquare, Square, AlertTriangle, Play } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Images, Trash2, Download, Copy, Maximize2, CheckSquare, Square, AlertTriangle, Play, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
@@ -43,8 +43,7 @@ function GalleryPage() {
   const [storage, setStorage] = useState<{ usage: number; quota: number } | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [urlCache, setUrlCache] = useState<Record<string, string>>({});
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [previewType, setPreviewType] = useState<"image" | "video">("image");
+  const [previewId, setPreviewId] = useState<string | null>(null);
   const [filterScene, setFilterScene] = useState<string>("all");
   const [filterChar, setFilterChar] = useState<string>("all");
   const [filterType, setFilterType] = useState<string>("all");
@@ -154,10 +153,31 @@ function GalleryPage() {
     refresh();
   };
 
-  const openPreview = (url: string, type: "image" | "video") => {
-    setPreviewUrl(url);
-    setPreviewType(type);
-  };
+  const openPreview = (id: string) => setPreviewId(id);
+
+  const previewIndex = useMemo(
+    () => (previewId ? filtered.findIndex((i) => i.id === previewId) : -1),
+    [previewId, filtered],
+  );
+  const previewItem = previewIndex >= 0 ? filtered[previewIndex] : null;
+  const previewUrl = previewItem ? urlCache[previewItem.id] : null;
+  const previewType = previewItem ? typeOf(previewItem) : "image";
+
+  const navigatePreview = useCallback((dir: -1 | 1) => {
+    if (previewIndex < 0 || !filtered.length) return;
+    const next = (previewIndex + dir + filtered.length) % filtered.length;
+    setPreviewId(filtered[next].id);
+  }, [previewIndex, filtered]);
+
+  useEffect(() => {
+    if (!previewId) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "ArrowLeft") navigatePreview(-1);
+      else if (e.key === "ArrowRight") navigatePreview(1);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [previewId, navigatePreview]);
 
   return (
     <div className="mx-auto max-w-[1500px] px-4 py-8 md:px-8">
@@ -299,7 +319,7 @@ function GalleryPage() {
                   t === "video" ? (
                     <div
                       className="relative aspect-square w-full cursor-pointer bg-black"
-                      onClick={() => openPreview(url, "video")}
+                      onClick={() => openPreview(it.id)}
                     >
                       <video
                         src={url}
@@ -328,7 +348,7 @@ function GalleryPage() {
                   <p className="line-clamp-2 text-foreground/80">{it.prompt}</p>
                 </div>
                 <div className="absolute inset-x-0 bottom-0 flex justify-end gap-1 bg-gradient-to-t from-background/95 to-transparent p-2 opacity-0 transition group-hover:opacity-100">
-                  <Button size="icon" variant="secondary" className="h-7 w-7" onClick={() => url && openPreview(url, t)}>
+                  <Button size="icon" variant="secondary" className="h-7 w-7" onClick={() => openPreview(it.id)}>
                     <Maximize2 className="h-3.5 w-3.5" />
                   </Button>
                   <Button size="icon" variant="secondary" className="h-7 w-7" onClick={() => copyPrompt(it.prompt)}>
@@ -350,15 +370,38 @@ function GalleryPage() {
         </div>
       )}
 
-      <Dialog open={!!previewUrl} onOpenChange={(o) => !o && setPreviewUrl(null)}>
+      <Dialog open={!!previewId} onOpenChange={(o) => !o && setPreviewId(null)}>
         <DialogContent className="max-w-5xl border-border/60 bg-background p-2">
           <DialogTitle className="sr-only">预览</DialogTitle>
-          {previewUrl && previewType === "image" && (
-            <img src={previewUrl} alt="预览" className="max-h-[85vh] w-full rounded-lg object-contain" />
-          )}
-          {previewUrl && previewType === "video" && (
-            <video src={previewUrl} controls autoPlay className="max-h-[85vh] w-full rounded-lg" />
-          )}
+          <div className="relative">
+            {previewUrl && previewType === "image" && (
+              <img src={previewUrl} alt="预览" className="max-h-[85vh] w-full rounded-lg object-contain" />
+            )}
+            {previewUrl && previewType === "video" && (
+              <video src={previewUrl} controls autoPlay className="max-h-[85vh] w-full rounded-lg" />
+            )}
+            {filtered.length > 1 && (
+              <>
+                <button
+                  onClick={() => navigatePreview(-1)}
+                  className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-background/80 p-2 backdrop-blur hover:bg-background"
+                  aria-label="上一张"
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </button>
+                <button
+                  onClick={() => navigatePreview(1)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-background/80 p-2 backdrop-blur hover:bg-background"
+                  aria-label="下一张"
+                >
+                  <ChevronRight className="h-5 w-5" />
+                </button>
+                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-background/85 px-3 py-1 text-xs font-mono backdrop-blur">
+                  {previewIndex + 1} / {filtered.length}
+                </div>
+              </>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
 

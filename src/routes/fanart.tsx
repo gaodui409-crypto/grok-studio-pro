@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import {
   Sparkles, Loader2, Plus, Trash2, Pencil, Check, X,
-  ChevronDown, RotateCcw, Wand2,
+  ChevronDown, RotateCcw, Wand2, UserCircle2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Accordion, AccordionContent, AccordionItem, AccordionTrigger,
 } from "@/components/ui/accordion";
@@ -29,6 +30,11 @@ import {
   type Scene, type SceneTreeData,
 } from "@/lib/scene-tree";
 import { addGalleryFromUrl } from "@/lib/gallery-db";
+import { runWithConcurrency } from "@/lib/concurrency";
+import {
+  BUILTIN_PRESETS, loadCustomPresets, type CharacterPreset,
+} from "@/lib/character-presets";
+import { useAppStore, applyPresetToFanart, presetExtraItems, type SceneSel } from "@/lib/app-store";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/fanart")({
@@ -42,15 +48,6 @@ export const Route = createFileRoute("/fanart")({
 });
 
 const PRICE_PER_IMAGE = 0.07;
-
-type SceneSel = {
-  // selected outfits / actions per scene id
-  outfits: Record<string, boolean>;
-  actions: Record<string, boolean>;
-  enabled: boolean;
-};
-
-type Selections = Record<string, SceneSel>;
 
 type PromptItem = {
   id: string;
@@ -82,54 +79,49 @@ const buildPrompt = (
 
 function FanartPage() {
   const { settings } = useSettings();
+  const f = useAppStore((s) => s.fanart);
+  const setF = useAppStore((s) => s.setFanart);
+  const patchF = useAppStore((s) => s.patchFanart);
 
-  // Persistent scene tree
+  // Persistent scene tree (lives in localStorage, separate from per-page store)
   const [tree, setTree] = useState<SceneTreeData>(loadSceneTree);
   useEffect(() => { saveSceneTree(tree); }, [tree]);
 
-  // Character
-  const [charName, setCharName] = useState("");
-  const [charDesc, setCharDesc] = useState("");
-  const [refImages, setRefImages] = useState<string[]>([]);
+  // Custom presets list (rebuilds when settings page changes them)
+  const [customPresets, setCustomPresets] = useState<CharacterPreset[]>(loadCustomPresets);
+  useEffect(() => {
+    const h = () => setCustomPresets(loadCustomPresets());
+    window.addEventListener("grok-presets-changed", h);
+    return () => window.removeEventListener("grok-presets-changed", h);
+  }, []);
+  const allPresets = useMemo(() => [...BUILTIN_PRESETS, ...customPresets], [customPresets]);
 
-  // Selection state per scene
-  const [sel, setSel] = useState<Selections>({});
-  // global single-pick style/lighting (store value, "" = none)
-  const [styleSel, setStyleSel] = useState<string>("");
-  const [lightSel, setLightSel] = useState<string>("");
+  // Initialize active scene if needed
+  useEffect(() => {
+    if (!f.activeSceneId && tree.scenes[0]) {
+      setF({ activeSceneId: tree.scenes[0].id });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tree.scenes.length]);
 
-  // Generation params
-  const [mode, setMode] = useState<"single" | "multi">("single");
-  const [activeSceneId, setActiveSceneId] = useState<string>(tree.scenes[0]?.id ?? "");
-  const [aspect, setAspect] = useState(settings.defaultAspectRatio);
-  const [resolution, setResolution] = useState<"1k" | "2k">(settings.defaultResolution);
-  const [model, setModel] = useState(settings.imageModel);
-
-  // Editing scene name
+  // Editing scene name (UI-only, not persisted)
   const [editingSceneId, setEditingSceneId] = useState<string | null>(null);
   const [editingSceneName, setEditingSceneName] = useState("");
   const [newSceneInput, setNewSceneInput] = useState("");
-
-  // Manual prompt overrides: id -> overridden prompt text
-  const [overrides, setOverrides] = useState<Record<string, string>>({});
   const [editingPromptId, setEditingPromptId] = useState<string | null>(null);
   const [editingPromptVal, setEditingPromptVal] = useState("");
 
-  // Generation
-  const [running, setRunning] = useState(false);
-  const [done, setDone] = useState(0);
-  const [currentPrompt, setCurrentPrompt] = useState<string>("");
+  // Pull from store
+  const {
+    presetId, charName, charDesc, refImages, sel, styleSel, lightSel,
+    mode, activeSceneId, aspect, resolution, model, overrides,
+    running, done, total, currentPrompt,
+  } = f;
 
   // helpers ------------------------------------------------------
   const getSel = (sceneId: string): SceneSel => sel[sceneId] ?? { outfits: {}, actions: {}, enabled: false };
   const updateSel = (sceneId: string, patch: Partial<SceneSel>) =>
-    setSel((p) => ({ ...p, [sceneId]: { ...getSel(sceneId), ...patch } }));
-
-  const toggleItem = (sceneId: string, kind: "outfits" | "actions", value: string) => {
-    const s = getSel(sceneId);
-    const map = { ...s[kind], [value]: !s[kind][value] };
-    updateSel(sceneId, { [kind]: map, enabled: true });
-  };
+    patchF((s) => ({ ...s, sel: { ...s.sel, [sceneId]: { ...(s.sel[sceneId] ?? { outfits: {}, actions: {}, enabled: false }), ...patch } } }));
 
   const updateScene = (id: string, patch: Partial<Scene>) =>
     setTree((t) => ({ ...t, scenes: t.scenes.map((s) => (s.id === id ? { ...s, ...patch } : s)) }));
@@ -143,12 +135,12 @@ function FanartPage() {
   };
   const removeScene = (id: string) => {
     setTree((t) => ({ ...t, scenes: t.scenes.filter((s) => s.id !== id) }));
-    setSel((p) => {
-      const next = { ...p }; delete next[id]; return next;
+    patchF((s) => {
+      const next = { ...s.sel }; delete next[id];
+      return { ...s, sel: next };
     });
   };
 
-  // chip helpers for outfits/actions inside a scene
   const sceneItemsAs = (scene: Scene, kind: "outfits" | "actions"): EditableItem[] => {
     const checks = getSel(scene.id)[kind];
     return scene[kind].map((v) => ({ value: v, checked: !!checks[v] }));
@@ -161,9 +153,53 @@ function FanartPage() {
     updateSel(scene.id, { [kind]: checkMap, enabled: true });
   };
 
-  // global style/lighting as single-pick chip lists
   const styleItems: EditableItem[] = tree.styles.map((v) => ({ value: v, checked: v === styleSel }));
   const lightItems: EditableItem[] = tree.lighting.map((v) => ({ value: v, checked: v === lightSel }));
+
+  // Apply character preset --------------------------------------
+  const applyPreset = (id: string) => {
+    if (!id) {
+      // "custom" — clear
+      setF({
+        presetId: "", charName: "", charDesc: "",
+        sel: {}, styleSel: "", lightSel: "", lastPresetApplied: "",
+      });
+      return;
+    }
+    const preset = allPresets.find((p) => p.id === id);
+    if (!preset) return;
+
+    // First, augment scene tree with any preset items not yet present
+    const extras = presetExtraItems(preset, tree.scenes);
+    if (extras.length) {
+      setTree((t) => ({
+        ...t,
+        scenes: t.scenes.map((s) => {
+          const extra = extras.find((e) => e.sceneId === s.id);
+          if (!extra) return s;
+          return {
+            ...s,
+            outfits: [...s.outfits, ...extra.addOutfits.filter((x) => !s.outfits.includes(x))],
+            actions: [...s.actions, ...extra.addActions.filter((x) => !s.actions.includes(x))],
+          };
+        }),
+      }));
+    }
+
+    // Apply on the *next* version of the tree — use a microtask to read it back
+    queueMicrotask(() => {
+      const updatedTree = loadSceneTree();
+      applyPresetToFanart(preset, updatedTree.scenes, patchF);
+      // ensure style/lighting exist in tree (so chip shows checked)
+      if (preset.defaultStyle && !updatedTree.styles.includes(preset.defaultStyle)) {
+        setTree((t) => ({ ...t, styles: [...t.styles, preset.defaultStyle!] }));
+      }
+      if (preset.defaultLighting && !updatedTree.lighting.includes(preset.defaultLighting)) {
+        setTree((t) => ({ ...t, lighting: [...t.lighting, preset.defaultLighting!] }));
+      }
+      toast.success(`已应用预设：${preset.name}`);
+    });
+  };
 
   // Build prompts list ------------------------------------------
   const promptItems = useMemo<PromptItem[]>(() => {
@@ -188,7 +224,7 @@ function FanartPage() {
       });
     });
     return out;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tree, sel, mode, activeSceneId, charDesc, styleSel, lightSel, overrides]);
 
   const totalCost = (promptItems.length * PRICE_PER_IMAGE).toFixed(2);
@@ -198,18 +234,12 @@ function FanartPage() {
     if (!charDesc.trim()) return toast.error("请填写角色描述");
     if (!promptItems.length) return toast.error("请至少勾选一个服装或动作");
 
-    setRunning(true);
-    setDone(0);
-    setCurrentPrompt("");
+    setF({ running: true, done: 0, total: promptItems.length, currentPrompt: "" });
     let success = 0;
-    let idx = 0;
-    const concurrency = 3;
 
-    const worker = async () => {
-      while (idx < promptItems.length) {
-        const my = idx++;
-        const item = promptItems[my];
-        setCurrentPrompt(item.prompt);
+    try {
+      await runWithConcurrency(promptItems, async (item) => {
+        setF({ currentPrompt: item.prompt });
         try {
           const data = refImages.length
             ? await editImages({ prompt: item.prompt, images: refImages, n: 1, resolution, model })
@@ -232,17 +262,12 @@ function FanartPage() {
         } catch (e) {
           toast.error(`「${item.sceneName} · ${item.action || item.outfit}」失败：${(e as Error).message}`);
         } finally {
-          setDone((d) => d + 1);
+          patchF((s) => ({ ...s, done: s.done + 1 }));
         }
-      }
-    };
-
-    try {
-      await Promise.all(Array.from({ length: concurrency }, worker));
+      }, settings.concurrency);
       toast.success(`批量完成，已保存到画廊 ${success} 张`);
     } finally {
-      setRunning(false);
-      setCurrentPrompt("");
+      setF({ running: false, currentPrompt: "" });
     }
   };
 
@@ -261,24 +286,46 @@ function FanartPage() {
         <div className="space-y-6">
           {/* Character */}
           <section className="space-y-4 rounded-2xl border border-border/60 bg-card p-5 shadow-card">
-            <h3 className="font-display text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              角色设定
-            </h3>
+            <div className="flex items-center justify-between">
+              <h3 className="font-display text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                角色设定
+              </h3>
+              <span className="text-[11px] text-muted-foreground">在「设置 · 角色预设」中可管理自定义预设</span>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1.5 text-xs uppercase tracking-wider text-muted-foreground">
+                <UserCircle2 className="h-3.5 w-3.5" /> 角色预设
+              </Label>
+              <Select value={presetId || "__custom"} onValueChange={(v) => applyPreset(v === "__custom" ? "" : v)}>
+                <SelectTrigger><SelectValue placeholder="选择内置或自定义角色" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__custom">自定义角色（清空填空）</SelectItem>
+                  {BUILTIN_PRESETS.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>★ {p.name}</SelectItem>
+                  ))}
+                  {customPresets.length > 0 && customPresets.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label>角色名（用于画廊筛选）</Label>
-                <Input value={charName} onChange={(e) => setCharName(e.target.value)} placeholder="例如：白雪" />
+                <Input value={charName} onChange={(e) => setF({ charName: e.target.value })} placeholder="例如：白雪" />
               </div>
               <div className="space-y-2">
                 <Label>参考图（1–3 张，可选）</Label>
-                <ImageUpload values={refImages} onChange={setRefImages} max={3} />
+                <ImageUpload values={refImages} onChange={(v) => setF({ refImages: v })} max={3} />
               </div>
             </div>
             <div className="space-y-2">
               <Label>角色描述</Label>
               <Textarea
                 value={charDesc}
-                onChange={(e) => setCharDesc(e.target.value)}
+                onChange={(e) => setF({ charDesc: e.target.value })}
                 placeholder="例如：银发红瞳的少女，气质冷艳，腰间别着短刃"
                 className="min-h-[80px] resize-none bg-background/60"
               />
@@ -346,7 +393,7 @@ function FanartPage() {
                           )}
                           {mode === "single" && (
                             <button
-                              onClick={(e) => { e.stopPropagation(); setActiveSceneId(scene.id); }}
+                              onClick={(e) => { e.stopPropagation(); setF({ activeSceneId: scene.id }); }}
                               className={cn(
                                 "rounded-full border px-2 py-0.5 transition",
                                 isActive
@@ -416,7 +463,7 @@ function FanartPage() {
                 <Label className="text-xs uppercase tracking-wider text-muted-foreground">画风</Label>
                 <button
                   type="button"
-                  onClick={() => setStyleSel("")}
+                  onClick={() => setF({ styleSel: "" })}
                   className={cn(
                     "rounded-full border px-2 py-0.5 text-xs transition",
                     styleSel === ""
@@ -431,7 +478,7 @@ function FanartPage() {
                 onChange={(items) => {
                   setTree((t) => ({ ...t, styles: items.map((i) => i.value) }));
                   const picked = items.find((i) => i.checked)?.value ?? "";
-                  setStyleSel(picked);
+                  setF({ styleSel: picked });
                 }}
                 placeholder="添加画风…"
               />
@@ -441,7 +488,7 @@ function FanartPage() {
                 <Label className="text-xs uppercase tracking-wider text-muted-foreground">光影氛围</Label>
                 <button
                   type="button"
-                  onClick={() => setLightSel("")}
+                  onClick={() => setF({ lightSel: "" })}
                   className={cn(
                     "rounded-full border px-2 py-0.5 text-xs transition",
                     lightSel === ""
@@ -456,7 +503,7 @@ function FanartPage() {
                 onChange={(items) => {
                   setTree((t) => ({ ...t, lighting: items.map((i) => i.value) }));
                   const picked = items.find((i) => i.checked)?.value ?? "";
-                  setLightSel(picked);
+                  setF({ lightSel: picked });
                 }}
                 placeholder="添加光影…"
               />
@@ -472,7 +519,7 @@ function FanartPage() {
                 生成控制
               </h3>
 
-              <Tabs value={mode} onValueChange={(v) => setMode(v as "single" | "multi")}>
+              <Tabs value={mode} onValueChange={(v) => setF({ mode: v as "single" | "multi" })}>
                 <TabsList className="grid w-full grid-cols-2">
                   <TabsTrigger value="single">单场景精细</TabsTrigger>
                   <TabsTrigger value="multi">多场景混合</TabsTrigger>
@@ -487,10 +534,10 @@ function FanartPage() {
               </Tabs>
 
               <div className="grid grid-cols-2 gap-3">
-                <AspectRatioSelect value={aspect} onChange={setAspect} />
-                <ResolutionSelect value={resolution} onChange={(v) => setResolution(v as "1k" | "2k")} />
+                <AspectRatioSelect value={aspect} onChange={(v) => setF({ aspect: v })} />
+                <ResolutionSelect value={resolution} onChange={(v) => setF({ resolution: v as "1k" | "2k" })} />
               </div>
-              <ImageModelSelect value={model} onChange={setModel} />
+              <ImageModelSelect value={model} onChange={(v) => setF({ model: v })} />
 
               <div className="rounded-lg border border-dashed border-border/60 bg-surface/60 p-3 text-xs">
                 <div className="flex items-center justify-between">
@@ -501,15 +548,19 @@ function FanartPage() {
                   <span className="text-muted-foreground">预估费用</span>
                   <span className="font-mono">${totalCost}</span>
                 </div>
+                <div className="mt-1 flex items-center justify-between">
+                  <span className="text-muted-foreground">并发数</span>
+                  <span className="font-mono">{settings.concurrency}（在设置中调整）</span>
+                </div>
               </div>
 
-              {running && (
+              {(running || (done > 0 && total > 0)) && (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">进度</span>
-                    <span className="font-mono text-primary-glow">{done}/{promptItems.length}</span>
+                    <span className="font-mono text-primary-glow">{done}/{total || promptItems.length}</span>
                   </div>
-                  <Progress value={promptItems.length ? (done / promptItems.length) * 100 : 0} />
+                  <Progress value={(total || promptItems.length) ? (done / (total || promptItems.length)) * 100 : 0} />
                   {currentPrompt && (
                     <p className="line-clamp-2 text-xs text-muted-foreground">正在生成：{currentPrompt}</p>
                   )}
@@ -533,7 +584,7 @@ function FanartPage() {
                   提示词预览
                 </h3>
                 {Object.keys(overrides).length > 0 && (
-                  <Button size="sm" variant="ghost" onClick={() => setOverrides({})}>
+                  <Button size="sm" variant="ghost" onClick={() => setF({ overrides: {} })}>
                     <RotateCcw className="mr-1 h-3 w-3" /> 重置编辑
                   </Button>
                 )}
@@ -551,7 +602,7 @@ function FanartPage() {
                             <span>{p.sceneName}</span>
                             {editingPromptId === p.id ? (
                               <button onClick={() => {
-                                setOverrides((o) => ({ ...o, [p.id]: editingPromptVal }));
+                                setF({ overrides: { ...overrides, [p.id]: editingPromptVal } });
                                 setEditingPromptId(null);
                               }}><Check className="h-3.5 w-3.5 text-success" /></button>
                             ) : (
@@ -562,7 +613,10 @@ function FanartPage() {
                             )}
                             {overrides[p.id] && (
                               <button
-                                onClick={() => setOverrides((o) => { const n = { ...o }; delete n[p.id]; return n; })}
+                                onClick={() => {
+                                  const n = { ...overrides }; delete n[p.id];
+                                  setF({ overrides: n });
+                                }}
                                 className="hover:text-destructive"
                               ><X className="h-3 w-3" /></button>
                             )}
