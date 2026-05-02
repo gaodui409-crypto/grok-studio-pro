@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
 import { ImageIcon, Sparkles, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -10,9 +9,9 @@ import { PageHeader } from "@/components/page-header";
 import { ApiKeyBanner } from "@/components/api-key-banner";
 import { ImageGallery } from "@/components/image-gallery";
 import { AspectRatioSelect, ResolutionSelect, ImageModelSelect } from "@/components/param-selects";
-import { useSettings } from "@/hooks/use-settings";
-import { generateImages, type GeneratedImage } from "@/lib/xai";
+import { generateImages } from "@/lib/xai";
 import { addGalleryFromUrl } from "@/lib/gallery-db";
+import { useAppStore } from "@/lib/app-store";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -25,21 +24,16 @@ export const Route = createFileRoute("/")({
 });
 
 function Index() {
-  const { settings } = useSettings();
-  const [prompt, setPrompt] = useState("");
-  const [n, setN] = useState(1);
-  const [aspect, setAspect] = useState(settings.defaultAspectRatio);
-  const [resolution, setResolution] = useState<"1k" | "2k">(settings.defaultResolution);
-  const [model, setModel] = useState(settings.imageModel);
-  const [loading, setLoading] = useState(false);
-  const [images, setImages] = useState<GeneratedImage[]>([]);
+  const t2i = useAppStore((s) => s.t2i);
+  const setT2I = useAppStore((s) => s.setT2I);
+  const { prompt, n, aspect, resolution, model, loading, images } = t2i;
 
   const handleGenerate = async () => {
     if (!prompt.trim()) return toast.error("请输入提示词");
-    setLoading(true);
+    setT2I({ loading: true });
     try {
       const data = await generateImages({ prompt, n, aspect_ratio: aspect, resolution, model });
-      setImages(data);
+      setT2I({ images: data });
       toast.success(`已生成 ${data.length} 张图片`);
       Promise.all(data.map((img) =>
         addGalleryFromUrl(img.url, { prompt, model, sceneName: "文生图" }),
@@ -49,7 +43,7 @@ function Index() {
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
-      setLoading(false);
+      setT2I({ loading: false });
     }
   };
 
@@ -64,7 +58,7 @@ function Index() {
             <Label>提示词</Label>
             <Textarea
               value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
+              onChange={(e) => setT2I({ prompt: e.target.value })}
               placeholder="例如：赛博朋克风格的东京夜晚，霓虹倒映在湿润街道，雨夜，电影感"
               className="min-h-[180px] resize-none bg-background/60 text-base"
             />
@@ -81,11 +75,11 @@ function Index() {
           <h3 className="font-display text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">参数</h3>
           <div className="space-y-1.5">
             <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">数量 (1–10)</Label>
-            <Input type="number" min={1} max={10} value={n} onChange={(e) => setN(Math.min(10, Math.max(1, +e.target.value || 1)))} />
+            <Input type="number" min={1} max={10} value={n} onChange={(e) => setT2I({ n: Math.min(10, Math.max(1, +e.target.value || 1)) })} />
           </div>
-          <AspectRatioSelect value={aspect} onChange={setAspect} />
-          <ResolutionSelect value={resolution} onChange={(v) => setResolution(v as "1k" | "2k")} />
-          <ImageModelSelect value={model} onChange={setModel} />
+          <AspectRatioSelect value={aspect} onChange={(v) => setT2I({ aspect: v })} />
+          <ResolutionSelect value={resolution} onChange={(v) => setT2I({ resolution: v as "1k" | "2k" })} />
+          <ImageModelSelect value={model} onChange={(v) => setT2I({ model: v })} />
         </aside>
       </div>
 
