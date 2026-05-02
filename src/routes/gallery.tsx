@@ -319,7 +319,7 @@ function GalleryPage() {
                   t === "video" ? (
                     <div
                       className="relative aspect-square w-full cursor-pointer bg-black"
-                      onClick={() => openPreview(url, "video")}
+                      onClick={() => openPreview(it.id)}
                     >
                       <video
                         src={url}
@@ -348,7 +348,7 @@ function GalleryPage() {
                   <p className="line-clamp-2 text-foreground/80">{it.prompt}</p>
                 </div>
                 <div className="absolute inset-x-0 bottom-0 flex justify-end gap-1 bg-gradient-to-t from-background/95 to-transparent p-2 opacity-0 transition group-hover:opacity-100">
-                  <Button size="icon" variant="secondary" className="h-7 w-7" onClick={() => url && openPreview(url, t)}>
+                  <Button size="icon" variant="secondary" className="h-7 w-7" onClick={() => openPreview(it.id)}>
                     <Maximize2 className="h-3.5 w-3.5" />
                   </Button>
                   <Button size="icon" variant="secondary" className="h-7 w-7" onClick={() => copyPrompt(it.prompt)}>
@@ -370,15 +370,38 @@ function GalleryPage() {
         </div>
       )}
 
-      <Dialog open={!!previewUrl} onOpenChange={(o) => !o && setPreviewUrl(null)}>
+      <Dialog open={!!previewId} onOpenChange={(o) => !o && setPreviewId(null)}>
         <DialogContent className="max-w-5xl border-border/60 bg-background p-2">
           <DialogTitle className="sr-only">预览</DialogTitle>
-          {previewUrl && previewType === "image" && (
-            <img src={previewUrl} alt="预览" className="max-h-[85vh] w-full rounded-lg object-contain" />
-          )}
-          {previewUrl && previewType === "video" && (
-            <video src={previewUrl} controls autoPlay className="max-h-[85vh] w-full rounded-lg" />
-          )}
+          <div className="relative">
+            {previewUrl && previewType === "image" && (
+              <img src={previewUrl} alt="预览" className="max-h-[85vh] w-full rounded-lg object-contain" />
+            )}
+            {previewUrl && previewType === "video" && (
+              <video src={previewUrl} controls autoPlay className="max-h-[85vh] w-full rounded-lg" />
+            )}
+            {filtered.length > 1 && (
+              <>
+                <button
+                  onClick={() => navigatePreview(-1)}
+                  className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-background/80 p-2 backdrop-blur hover:bg-background"
+                  aria-label="上一张"
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </button>
+                <button
+                  onClick={() => navigatePreview(1)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-background/80 p-2 backdrop-blur hover:bg-background"
+                  aria-label="下一张"
+                >
+                  <ChevronRight className="h-5 w-5" />
+                </button>
+                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-background/85 px-3 py-1 text-xs font-mono backdrop-blur">
+                  {previewIndex + 1} / {filtered.length}
+                </div>
+              </>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
 
