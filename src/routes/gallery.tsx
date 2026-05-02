@@ -153,10 +153,31 @@ function GalleryPage() {
     refresh();
   };
 
-  const openPreview = (url: string, type: "image" | "video") => {
-    setPreviewUrl(url);
-    setPreviewType(type);
-  };
+  const openPreview = (id: string) => setPreviewId(id);
+
+  const previewIndex = useMemo(
+    () => (previewId ? filtered.findIndex((i) => i.id === previewId) : -1),
+    [previewId, filtered],
+  );
+  const previewItem = previewIndex >= 0 ? filtered[previewIndex] : null;
+  const previewUrl = previewItem ? urlCache[previewItem.id] : null;
+  const previewType = previewItem ? typeOf(previewItem) : "image";
+
+  const navigatePreview = useCallback((dir: -1 | 1) => {
+    if (previewIndex < 0 || !filtered.length) return;
+    const next = (previewIndex + dir + filtered.length) % filtered.length;
+    setPreviewId(filtered[next].id);
+  }, [previewIndex, filtered]);
+
+  useEffect(() => {
+    if (!previewId) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "ArrowLeft") navigatePreview(-1);
+      else if (e.key === "ArrowRight") navigatePreview(1);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [previewId, navigatePreview]);
 
   return (
     <div className="mx-auto max-w-[1500px] px-4 py-8 md:px-8">
