@@ -54,6 +54,7 @@ function EditPage() {
     <div className="mx-auto max-w-7xl px-4 py-8 md:px-8">
       <PageHeader title="图生图 / 编辑" description="单图编辑或多图融合。多图模式下可在提示词中用 <IMAGE_0>、<IMAGE_1> 引用。" icon={Wand2} />
       <ApiKeyBanner />
+      <ProviderUnsupportedBanner feature="i2i" />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-5 rounded-2xl border border-border/60 bg-card p-5 shadow-card">
