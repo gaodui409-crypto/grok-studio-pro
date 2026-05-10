@@ -9,7 +9,7 @@ import { PageHeader } from "@/components/page-header";
 import { ApiKeyBanner } from "@/components/api-key-banner";
 import { ImageGallery } from "@/components/image-gallery";
 import { AspectRatioSelect, ResolutionSelect, ImageModelSelect } from "@/components/param-selects";
-import { generateImages } from "@/lib/xai";
+import { generateImages, currentProvider, providerLabel } from "@/lib/xai";
 import { addGalleryFromUrl } from "@/lib/gallery-db";
 import { useAppStore } from "@/lib/app-store";
 
