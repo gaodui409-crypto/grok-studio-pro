@@ -35,8 +35,9 @@ function Index() {
       const data = await generateImages({ prompt, n, aspect_ratio: aspect, resolution, model });
       setT2I({ images: data });
       toast.success(`已生成 ${data.length} 张图片`);
+      const prov = currentProvider();
       Promise.all(data.map((img) =>
-        addGalleryFromUrl(img.url, { prompt, model, sceneName: "文生图" }),
+        addGalleryFromUrl(img.url, { prompt, model, sceneName: "文生图", provider: providerLabel(prov) }),
       ))
         .then(() => toast.success("已自动保存到画廊"))
         .catch((e) => toast.error(`画廊保存失败：${(e as Error).message}`));
