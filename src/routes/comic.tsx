@@ -352,6 +352,7 @@ function TranslatePanel() {
         updatePage(page.id, { status: "done", resultUrl: img.url, step: "完成" });
         addGalleryFromUrl(img.url, {
           prompt: embedPrompt, model, sceneName: "漫画翻译", type: "image",
+          provider: providerLabel(currentProvider()),
         }).catch(() => {});
       } catch (e) {
         updatePage(page.id, { status: "failed", error: (e as Error).message });
