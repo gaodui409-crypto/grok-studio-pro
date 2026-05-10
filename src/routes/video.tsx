@@ -100,6 +100,7 @@ function VideoPage() {
           sceneName: SUB_LABEL[subMode],
           type: "video",
           duration: final.video.duration ?? usedDuration,
+          provider: "xAI/NewAPI",
         })
           .then(() => toast.success("已保存到画廊"))
           .catch((e) => toast.error(`画廊保存失败：${(e as Error).message}（可手动下载）`));
