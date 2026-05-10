@@ -24,7 +24,7 @@ import {
 } from "@/components/param-selects";
 import { EditableChipList, type EditableItem } from "@/components/editable-chip-list";
 import { useSettings } from "@/hooks/use-settings";
-import { editImages, generateImages } from "@/lib/xai";
+import { editImages, generateImages, currentProvider, providerLabel } from "@/lib/xai";
 import {
   loadSceneTree, saveSceneTree, newScene, DEFAULT_SCENE_TREE,
   type Scene, type SceneTreeData,
