@@ -14,10 +14,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { PageHeader } from "@/components/page-header";
 import { ApiKeyBanner } from "@/components/api-key-banner";
+import { ProviderUnsupportedBanner } from "@/components/provider-banner";
 import { ImageUpload } from "@/components/image-upload";
 import { ImageModelSelect } from "@/components/param-selects";
 import { useSettings } from "@/hooks/use-settings";
-import { editImages, chatCompletion, fileToDataUri } from "@/lib/xai";
+import { editImages, chatCompletion, fileToDataUri, currentProvider, providerLabel } from "@/lib/xai";
 import { addGalleryFromUrl } from "@/lib/gallery-db";
 import { runWithConcurrency } from "@/lib/concurrency";
 import { useAppStore, type ComicPageItem } from "@/lib/app-store";
