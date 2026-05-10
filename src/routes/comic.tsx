@@ -62,6 +62,7 @@ function ComicPage() {
         icon={BookOpen}
       />
       <ApiKeyBanner />
+      <ProviderUnsupportedBanner feature="i2i" />
 
       <Tabs value={c.tab} onValueChange={(v) => set({ tab: v as "colorize" | "translate" })} className="mb-4">
         <TabsList className="grid w-full max-w-md grid-cols-2">
