@@ -7,25 +7,57 @@ export const VIDEO_MODELS = [
   { id: "grok-imagine-video", label: "Grok Imagine · Video (480p $0.05/s · 720p $0.07/s)" },
 ] as const;
 
+export type ProviderId = "xai" | "modelscope" | "hf";
+
+export const PROVIDERS: { id: ProviderId; label: string; desc: string }[] = [
+  { id: "xai", label: "xAI / NewAPI 中转", desc: "支持文生图、图生图、视频。可用于官方 api.x.ai 或兼容的 NewAPI 中转。" },
+  { id: "modelscope", label: "魔搭 ModelScope（免费）", desc: "Tongyi-MAI/Z-Image-Turbo，2000/天，仅文生图。" },
+  { id: "hf", label: "Hugging Face", desc: "HF Inference API，免费用户约 80 次/天，仅文生图。" },
+];
+
+export const HF_MODEL_PRESETS = [
+  "Tongyi-MAI/Z-Image-Turbo",
+  "black-forest-labs/FLUX.1-Krea-dev",
+];
+
+export const PROVIDER_FEATURES: Record<ProviderId, { t2i: boolean; i2i: boolean; video: boolean }> = {
+  xai: { t2i: true, i2i: true, video: true },
+  modelscope: { t2i: true, i2i: false, video: false },
+  hf: { t2i: true, i2i: false, video: false },
+};
+
 export type Settings = {
+  // Provider selection
+  provider: ProviderId;
+  // xAI / NewAPI
   apiKey: string;
   baseUrl: string;
-  defaultResolution: "1k" | "2k";
-  defaultAspectRatio: string;
   imageModel: string;
   videoModel: string;
+  // ModelScope
+  modelscopeToken: string;
+  // Hugging Face
+  hfToken: string;
+  hfModel: string;
+  // Shared defaults
+  defaultResolution: "1k" | "2k";
+  defaultAspectRatio: string;
   concurrency: number;
 };
 
 const KEY = "grok-studio-settings";
 
 export const defaultSettings: Settings = {
+  provider: "xai",
   apiKey: "",
   baseUrl: "https://api.x.ai",
-  defaultResolution: "1k",
-  defaultAspectRatio: "1:1",
   imageModel: "grok-imagine-image-pro",
   videoModel: "grok-imagine-video",
+  modelscopeToken: "",
+  hfToken: "",
+  hfModel: "Tongyi-MAI/Z-Image-Turbo",
+  defaultResolution: "1k",
+  defaultAspectRatio: "1:1",
   concurrency: 3,
 };
 
@@ -35,8 +67,8 @@ export function loadSettings(): Settings {
     const raw = localStorage.getItem(KEY);
     if (!raw) return defaultSettings;
     const merged = { ...defaultSettings, ...JSON.parse(raw) };
-    // clamp concurrency
     merged.concurrency = Math.max(1, Math.min(10, Number(merged.concurrency) || 3));
+    if (!PROVIDER_FEATURES[merged.provider as ProviderId]) merged.provider = "xai";
     return merged;
   } catch {
     return defaultSettings;
@@ -46,4 +78,21 @@ export function loadSettings(): Settings {
 export function saveSettings(s: Settings) {
   localStorage.setItem(KEY, JSON.stringify(s));
   window.dispatchEvent(new CustomEvent("grok-settings-changed"));
+}
+
+// Map an aspect ratio + resolution tier to width/height for non-xAI providers.
+export function aspectToWH(aspect: string, resolution: "1k" | "2k" = "1k"): { width: number; height: number } {
+  const base = resolution === "2k" ? 2048 : 1024;
+  const m = /^(\d+):(\d+)$/.exec(aspect);
+  if (!m) return { width: base, height: base };
+  const w = +m[1], h = +m[2];
+  if (w >= h) {
+    const width = base;
+    const height = Math.round((base * h) / w / 8) * 8;
+    return { width, height };
+  } else {
+    const height = base;
+    const width = Math.round((base * w) / h / 8) * 8;
+    return { width, height };
+  }
 }
