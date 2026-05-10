@@ -253,6 +253,7 @@ function FanartPage() {
                 action: item.action,
                 character: charName || charDesc.slice(0, 20),
                 model,
+                provider: providerLabel(currentProvider()),
               });
               success++;
             } catch (e) {
