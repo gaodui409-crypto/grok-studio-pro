@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Settings as SettingsIcon, Save, Eye, EyeOff, Plus, Trash2, Pencil, Check, X, Users } from "lucide-react";
+import { Settings as SettingsIcon, Save, Eye, EyeOff, Plus, Trash2, Pencil, Check, X, Users, Cloud } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,8 @@ import { Slider } from "@/components/ui/slider";
 import { PageHeader } from "@/components/page-header";
 import { AspectRatioSelect, ResolutionSelect, ImageModelSelect, VideoModelSelect } from "@/components/param-selects";
 import { useSettings } from "@/hooks/use-settings";
+import { PROVIDERS, HF_MODEL_PRESETS, type ProviderId } from "@/lib/settings";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   BUILTIN_PRESETS, loadCustomPresets, saveCustomPresets, newCustomPreset,
   type CharacterPreset,
