@@ -45,38 +45,111 @@ function SettingsPage() {
 
       <div className="space-y-5 rounded-2xl border border-border/60 bg-card p-6 shadow-card">
         <div className="space-y-2">
-          <Label>xAI API Key</Label>
-          <div className="relative">
-            <Input
-              type={showKey ? "text" : "password"}
-              value={draft.apiKey}
-              onChange={(e) => setDraft({ ...draft, apiKey: e.target.value })}
-              placeholder="xai-..."
-              className="pr-10 font-mono"
-            />
-            <button
-              type="button"
-              onClick={() => setShowKey((v) => !v)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1.5 text-muted-foreground hover:text-foreground"
-            >
-              {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </button>
-          </div>
+          <Label className="flex items-center gap-2"><Cloud className="h-4 w-4" /> 图片生成来源</Label>
+          <Select value={draft.provider} onValueChange={(v) => setDraft({ ...draft, provider: v as ProviderId })}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {PROVIDERS.map((p) => <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
           <p className="text-xs text-muted-foreground">
-            获取地址：<a href="https://console.x.ai" target="_blank" rel="noreferrer" className="text-primary-glow hover:underline">console.x.ai</a>
+            {PROVIDERS.find((p) => p.id === draft.provider)?.desc}
           </p>
         </div>
 
-        <div className="space-y-2">
-          <Label>API 代理地址</Label>
-          <Input
-            value={draft.baseUrl}
-            onChange={(e) => setDraft({ ...draft, baseUrl: e.target.value })}
-            placeholder="https://api.x.ai"
-            className="font-mono"
-          />
-          <p className="text-xs text-muted-foreground">默认 https://api.x.ai，可改为自托管代理。请求路径会自动拼接 /v1/...</p>
-        </div>
+        {draft.provider === "xai" && (
+          <>
+            <div className="space-y-2">
+              <Label>xAI API Key</Label>
+              <div className="relative">
+                <Input
+                  type={showKey ? "text" : "password"}
+                  value={draft.apiKey}
+                  onChange={(e) => setDraft({ ...draft, apiKey: e.target.value })}
+                  placeholder="xai-..."
+                  className="pr-10 font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowKey((v) => !v)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1.5 text-muted-foreground hover:text-foreground"
+                >
+                  {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                官方：<a href="https://console.x.ai" target="_blank" rel="noreferrer" className="text-primary-glow hover:underline">console.x.ai</a>；也可填入 NewAPI 中转 Key。
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label>API 代理地址</Label>
+              <Input
+                value={draft.baseUrl}
+                onChange={(e) => setDraft({ ...draft, baseUrl: e.target.value })}
+                placeholder="https://api.x.ai"
+                className="font-mono"
+              />
+              <p className="text-xs text-muted-foreground">默认 https://api.x.ai，可改为 NewAPI 等中转地址。请求路径会自动拼接 /v1/...</p>
+            </div>
+          </>
+        )}
+
+        {draft.provider === "modelscope" && (
+          <div className="space-y-2">
+            <Label>ModelScope Token</Label>
+            <Input
+              type={showKey ? "text" : "password"}
+              value={draft.modelscopeToken}
+              onChange={(e) => setDraft({ ...draft, modelscopeToken: e.target.value })}
+              placeholder="ms-..."
+              className="font-mono"
+            />
+            <p className="text-xs text-muted-foreground">
+              获取地址：<a href="https://modelscope.cn/my/myaccesstoken" target="_blank" rel="noreferrer" className="text-primary-glow hover:underline">modelscope.cn</a>。
+              固定使用 Tongyi-MAI/Z-Image-Turbo（异步）。免费额度 2000/天，并发 ≤3。
+            </p>
+          </div>
+        )}
+
+        {draft.provider === "hf" && (
+          <>
+            <div className="space-y-2">
+              <Label>Hugging Face Token</Label>
+              <Input
+                type={showKey ? "text" : "password"}
+                value={draft.hfToken}
+                onChange={(e) => setDraft({ ...draft, hfToken: e.target.value })}
+                placeholder="hf_..."
+                className="font-mono"
+              />
+              <p className="text-xs text-muted-foreground">
+                获取地址：<a href="https://huggingface.co/settings/tokens" target="_blank" rel="noreferrer" className="text-primary-glow hover:underline">huggingface.co/settings/tokens</a>。免费用户约 80 次/天。
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label>HF 模型</Label>
+              <Input
+                value={draft.hfModel}
+                onChange={(e) => setDraft({ ...draft, hfModel: e.target.value })}
+                placeholder="Tongyi-MAI/Z-Image-Turbo"
+                className="font-mono"
+              />
+              <div className="flex flex-wrap gap-1.5">
+                {HF_MODEL_PRESETS.map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setDraft({ ...draft, hfModel: m })}
+                    className="rounded-full border border-border/60 bg-surface px-2.5 py-1 text-xs hover:border-primary/60"
+                  >
+                    {m}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
@@ -89,15 +162,15 @@ function SettingsPage() {
             onValueChange={(v) => setDraft({ ...draft, concurrency: v[0] })}
           />
           <p className="text-xs text-muted-foreground">
-            同人图批量、漫画上色、漫画翻译均使用此并发数。xAI 限频：图片 30 RPM、视频 60 RPM，请按你的 Key 额度调整。
+            同人图批量、漫画上色、漫画翻译均使用此并发数。xAI 限频：图片 30 RPM、视频 60 RPM；ModelScope 建议 ≤3。
           </p>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
           <AspectRatioSelect value={draft.defaultAspectRatio} onChange={(v) => setDraft({ ...draft, defaultAspectRatio: v })} />
           <ResolutionSelect value={draft.defaultResolution} onChange={(v) => setDraft({ ...draft, defaultResolution: v as "1k" | "2k" })} />
-          <ImageModelSelect value={draft.imageModel} onChange={(v) => setDraft({ ...draft, imageModel: v })} />
-          <VideoModelSelect value={draft.videoModel} onChange={(v) => setDraft({ ...draft, videoModel: v })} />
+          {draft.provider === "xai" && <ImageModelSelect value={draft.imageModel} onChange={(v) => setDraft({ ...draft, imageModel: v })} />}
+          {draft.provider === "xai" && <VideoModelSelect value={draft.videoModel} onChange={(v) => setDraft({ ...draft, videoModel: v })} />}
         </div>
 
         <div className="flex justify-end pt-2">
