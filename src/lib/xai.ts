@@ -1,4 +1,12 @@
-import { loadSettings } from "./settings";
+import { loadSettings, aspectToWH, type ProviderId } from "./settings";
+
+export function currentProvider(): ProviderId {
+  return loadSettings().provider;
+}
+
+export function providerLabel(id: ProviderId = currentProvider()): string {
+  return id === "xai" ? "xAI/NewAPI" : id === "modelscope" ? "魔搭 ModelScope" : "Hugging Face";
+}
 
 export type ImageGenParams = {
   prompt: string;
