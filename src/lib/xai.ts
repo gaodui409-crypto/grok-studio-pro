@@ -93,6 +93,8 @@ async function request<T>(path: string, init: RequestInit): Promise<T> {
 
 export async function generateImages(p: ImageGenParams): Promise<GeneratedImage[]> {
   const cfg = loadSettings();
+  if (cfg.provider === "modelscope") return generateImagesModelScope(p);
+  if (cfg.provider === "hf") return generateImagesHF(p);
   const body = {
     model: p.model ?? cfg.imageModel,
     prompt: p.prompt,
@@ -110,6 +112,9 @@ export async function generateImages(p: ImageGenParams): Promise<GeneratedImage[
 
 export async function editImages(p: ImageEditParams): Promise<GeneratedImage[]> {
   const cfg = loadSettings();
+  if (cfg.provider !== "xai") {
+    throw new Error(`当前来源（${providerLabel(cfg.provider)}）不支持图生图，请在设置中切换到 xAI / NewAPI。`);
+  }
   const body: Record<string, unknown> = {
     model: p.model ?? cfg.imageModel,
     prompt: p.prompt,
@@ -129,8 +134,97 @@ export async function editImages(p: ImageEditParams): Promise<GeneratedImage[]> 
   return data.data.map(normalizeImage);
 }
 
+// ===== ModelScope (Tongyi-MAI/Z-Image-Turbo, async) =====
+async function generateImagesModelScope(p: ImageGenParams): Promise<GeneratedImage[]> {
+  const cfg = loadSettings();
+  if (!cfg.modelscopeToken) throw new Error("请先在设置中配置 ModelScope Token");
+  const { width, height } = aspectToWH(p.aspect_ratio ?? "1:1", p.resolution ?? "1k");
+  const baseUrl = "https://api-inference.modelscope.cn";
+  const headers = {
+    Authorization: `Bearer ${cfg.modelscopeToken}`,
+    "Content-Type": "application/json",
+    "X-ModelScope-Async-Mode": "true",
+  };
+  const n = p.n ?? 1;
+  const runOne = async (): Promise<GeneratedImage> => {
+    const start = await fetch(`${baseUrl}/v1/images/generations`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        model: "Tongyi-MAI/Z-Image-Turbo",
+        prompt: p.prompt,
+        width, height,
+        num_inference_steps: 9,
+        guidance_scale: 0.0,
+      }),
+    });
+    if (!start.ok) throw new Error(`ModelScope: ${await start.text()}`);
+    const { task_id } = (await start.json()) as { task_id: string };
+    if (!task_id) throw new Error("ModelScope 未返回 task_id");
+    while (true) {
+      await new Promise((r) => setTimeout(r, 5000));
+      const poll = await fetch(`${baseUrl}/v1/tasks/${task_id}`, {
+        headers: { Authorization: `Bearer ${cfg.modelscopeToken}`, "X-ModelScope-Task-Type": "image_generation" },
+      });
+      if (!poll.ok) throw new Error(`ModelScope poll: ${await poll.text()}`);
+      const data = (await poll.json()) as { task_status: string; output_images?: string[]; errors?: unknown };
+      if (data.task_status === "SUCCEED") {
+        const url = data.output_images?.[0];
+        if (!url) throw new Error("ModelScope 未返回 output_images");
+        return { url, mime_type: "image/png" };
+      }
+      if (data.task_status === "FAILED") throw new Error(`ModelScope 任务失败: ${JSON.stringify(data.errors)}`);
+    }
+  };
+  const out: GeneratedImage[] = [];
+  for (let i = 0; i < n; i++) out.push(await runOne());
+  return out;
+}
+
+// ===== Hugging Face Inference API =====
+async function generateImagesHF(p: ImageGenParams): Promise<GeneratedImage[]> {
+  const cfg = loadSettings();
+  if (!cfg.hfToken) throw new Error("请先在设置中配置 Hugging Face Token");
+  const model = p.model || cfg.hfModel || "Tongyi-MAI/Z-Image-Turbo";
+  const { width, height } = aspectToWH(p.aspect_ratio ?? "1:1", p.resolution ?? "1k");
+  const n = p.n ?? 1;
+  const runOne = async (): Promise<GeneratedImage> => {
+    const res = await fetch(`https://api-inference.huggingface.co/models/${model}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${cfg.hfToken}`,
+        "Content-Type": "application/json",
+        Accept: "image/png",
+      },
+      body: JSON.stringify({
+        inputs: p.prompt,
+        parameters: { width, height, num_inference_steps: 9, seed: Math.floor(Math.random() * 1e9) },
+      }),
+    });
+    if (!res.ok) {
+      let msg = `HTTP ${res.status}`;
+      try { msg = (await res.json())?.error || msg; } catch { try { msg = await res.text(); } catch { /* ignore */ } }
+      throw new Error(`HF: ${msg}`);
+    }
+    const blob = await res.blob();
+    const dataUri: string = await new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result as string);
+      r.onerror = reject;
+      r.readAsDataURL(blob);
+    });
+    return { url: dataUri, mime_type: blob.type || "image/png" };
+  };
+  const out: GeneratedImage[] = [];
+  for (let i = 0; i < n; i++) out.push(await runOne());
+  return out;
+}
+
 export async function generateVideo(p: VideoGenParams): Promise<{ request_id: string }> {
   const cfg = loadSettings();
+  if (cfg.provider !== "xai") {
+    throw new Error(`当前来源（${providerLabel(cfg.provider)}）不支持视频，请在设置中切换到 xAI / NewAPI。`);
+  }
   const body: Record<string, unknown> = {
     model: p.model ?? cfg.videoModel,
     prompt: p.prompt,
