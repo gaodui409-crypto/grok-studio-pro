@@ -80,7 +80,12 @@ function Index() {
           </div>
           <AspectRatioSelect value={aspect} onChange={(v) => setT2I({ aspect: v })} />
           <ResolutionSelect value={resolution} onChange={(v) => setT2I({ resolution: v as "1k" | "2k" })} />
-          <ImageModelSelect value={model} onChange={(v) => setT2I({ model: v })} />
+          {currentProvider() === "xai" && <ImageModelSelect value={model} onChange={(v) => setT2I({ model: v })} />}
+          {currentProvider() !== "xai" && (
+            <div className="rounded-md border border-border/60 bg-surface px-2.5 py-1.5 text-xs text-muted-foreground">
+              当前模型：<span className="text-foreground">{providerLabel()}</span>
+            </div>
+          )}
         </aside>
       </div>
 
