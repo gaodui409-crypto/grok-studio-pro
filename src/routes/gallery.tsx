@@ -345,6 +345,11 @@ function GalleryPage() {
                     <span className="truncate">{it.sceneName || "—"}</span>
                     <span className="font-mono">{formatBytes(it.size)}</span>
                   </div>
+                  {it.provider && (
+                    <div className="inline-flex rounded-full border border-border/60 bg-surface px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                      {it.provider}
+                    </div>
+                  )}
                   <p className="line-clamp-2 text-foreground/80">{it.prompt}</p>
                 </div>
                 <div className="absolute inset-x-0 bottom-0 flex justify-end gap-1 bg-gradient-to-t from-background/95 to-transparent p-2 opacity-0 transition group-hover:opacity-100">

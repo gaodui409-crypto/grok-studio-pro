@@ -10,6 +10,7 @@ import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/page-header";
 import { ApiKeyBanner } from "@/components/api-key-banner";
+import { ProviderUnsupportedBanner } from "@/components/provider-banner";
 import { ImageUpload } from "@/components/image-upload";
 import { AspectRatioSelect, ResolutionSelect, VideoModelSelect } from "@/components/param-selects";
 import {
@@ -99,6 +100,7 @@ function VideoPage() {
           sceneName: SUB_LABEL[subMode],
           type: "video",
           duration: final.video.duration ?? usedDuration,
+          provider: "xAI/NewAPI",
         })
           .then(() => toast.success("已保存到画廊"))
           .catch((e) => toast.error(`画廊保存失败：${(e as Error).message}（可手动下载）`));
@@ -122,6 +124,7 @@ function VideoPage() {
         icon={Film}
       />
       <ApiKeyBanner />
+      <ProviderUnsupportedBanner feature="video" />
 
       <Tabs value={subMode} onValueChange={(val) => set({ subMode: val as VideoSubMode })} className="mb-4">
         <TabsList className="grid w-full grid-cols-4">

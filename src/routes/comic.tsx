@@ -14,10 +14,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { PageHeader } from "@/components/page-header";
 import { ApiKeyBanner } from "@/components/api-key-banner";
+import { ProviderUnsupportedBanner } from "@/components/provider-banner";
 import { ImageUpload } from "@/components/image-upload";
 import { ImageModelSelect } from "@/components/param-selects";
 import { useSettings } from "@/hooks/use-settings";
-import { editImages, chatCompletion, fileToDataUri } from "@/lib/xai";
+import { editImages, chatCompletion, fileToDataUri, currentProvider, providerLabel } from "@/lib/xai";
 import { addGalleryFromUrl } from "@/lib/gallery-db";
 import { runWithConcurrency } from "@/lib/concurrency";
 import { useAppStore, type ComicPageItem } from "@/lib/app-store";
@@ -61,6 +62,7 @@ function ComicPage() {
         icon={BookOpen}
       />
       <ApiKeyBanner />
+      <ProviderUnsupportedBanner feature="i2i" />
 
       <Tabs value={c.tab} onValueChange={(v) => set({ tab: v as "colorize" | "translate" })} className="mb-4">
         <TabsList className="grid w-full max-w-md grid-cols-2">
@@ -217,6 +219,7 @@ function ColorizePanel() {
         updatePage(page.id, { status: "done", resultUrl: img.url });
         addGalleryFromUrl(img.url, {
           prompt: basePrompt, model, sceneName: "漫画上色", type: "image",
+          provider: providerLabel(currentProvider()),
         }).catch(() => {});
       } catch (e) {
         updatePage(page.id, { status: "failed", error: (e as Error).message });
@@ -349,6 +352,7 @@ function TranslatePanel() {
         updatePage(page.id, { status: "done", resultUrl: img.url, step: "完成" });
         addGalleryFromUrl(img.url, {
           prompt: embedPrompt, model, sceneName: "漫画翻译", type: "image",
+          provider: providerLabel(currentProvider()),
         }).catch(() => {});
       } catch (e) {
         updatePage(page.id, { status: "failed", error: (e as Error).message });

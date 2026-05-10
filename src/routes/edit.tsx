@@ -7,10 +7,11 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/page-header";
 import { ApiKeyBanner } from "@/components/api-key-banner";
+import { ProviderUnsupportedBanner } from "@/components/provider-banner";
 import { ImageGallery } from "@/components/image-gallery";
 import { ImageUpload } from "@/components/image-upload";
 import { ResolutionSelect, ImageModelSelect } from "@/components/param-selects";
-import { editImages } from "@/lib/xai";
+import { editImages, currentProvider, providerLabel } from "@/lib/xai";
 import { addGalleryFromUrl } from "@/lib/gallery-db";
 import { useAppStore } from "@/lib/app-store";
 
@@ -38,7 +39,7 @@ function EditPage() {
       set({ results: data });
       toast.success(`已生成 ${data.length} 张图片`);
       Promise.all(data.map((img) =>
-        addGalleryFromUrl(img.url, { prompt, model, sceneName: "图生图" }),
+        addGalleryFromUrl(img.url, { prompt, model, sceneName: "图生图", provider: providerLabel(currentProvider()) }),
       ))
         .then(() => toast.success("已自动保存到画廊"))
         .catch((e) => toast.error(`画廊保存失败：${(e as Error).message}`));
@@ -53,6 +54,7 @@ function EditPage() {
     <div className="mx-auto max-w-7xl px-4 py-8 md:px-8">
       <PageHeader title="图生图 / 编辑" description="单图编辑或多图融合。多图模式下可在提示词中用 <IMAGE_0>、<IMAGE_1> 引用。" icon={Wand2} />
       <ApiKeyBanner />
+      <ProviderUnsupportedBanner feature="i2i" />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-5 rounded-2xl border border-border/60 bg-card p-5 shadow-card">
