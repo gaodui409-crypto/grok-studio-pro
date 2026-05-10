@@ -13,6 +13,7 @@ export type GalleryItem = {
   model?: string;
   type?: "image" | "video";
   duration?: number;
+  provider?: string;
   createdAt: number;
   size: number;
 };
