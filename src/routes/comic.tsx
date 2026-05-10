@@ -219,6 +219,7 @@ function ColorizePanel() {
         updatePage(page.id, { status: "done", resultUrl: img.url });
         addGalleryFromUrl(img.url, {
           prompt: basePrompt, model, sceneName: "漫画上色", type: "image",
+          provider: providerLabel(currentProvider()),
         }).catch(() => {});
       } catch (e) {
         updatePage(page.id, { status: "failed", error: (e as Error).message });
