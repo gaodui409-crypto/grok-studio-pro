@@ -123,6 +123,7 @@ function VideoPage() {
         icon={Film}
       />
       <ApiKeyBanner />
+      <ProviderUnsupportedBanner feature="video" />
 
       <Tabs value={subMode} onValueChange={(val) => set({ subMode: val as VideoSubMode })} className="mb-4">
         <TabsList className="grid w-full grid-cols-4">
