@@ -1,10 +1,10 @@
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
+import { fetchBlobChecked } from "./http";
 
 export async function downloadOne(url: string, filename: string) {
   try {
-    const res = await fetch(url);
-    const blob = await res.blob();
+    const blob = await fetchBlobChecked(url);
     saveAs(blob, filename);
   } catch {
     // Fallback: open in new tab
@@ -18,22 +18,26 @@ export async function downloadOne(url: string, filename: string) {
   }
 }
 
+export type DownloadBatchResult = { saved: number; failed: number };
+
 export async function downloadAllAsZip(
   items: { url: string; filename: string }[],
   zipName = "grok-studio.zip",
-) {
+): Promise<DownloadBatchResult> {
   const zip = new JSZip();
+  let saved = 0;
+  let failed = 0;
   await Promise.all(
-    items.map(async (it) => {
+    items.map(async (item) => {
       try {
-        const res = await fetch(it.url);
-        const blob = await res.blob();
-        zip.file(it.filename, blob);
+        zip.file(item.filename, await fetchBlobChecked(item.url));
+        saved++;
       } catch {
-        /* skip failed */
+        failed++;
       }
     }),
   );
   const blob = await zip.generateAsync({ type: "blob" });
   saveAs(blob, zipName);
+  return { saved, failed };
 }

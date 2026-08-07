@@ -1,6 +1,8 @@
 // IndexedDB persistent gallery for generated images.
 // Stores blob + metadata, since xAI URLs expire.
 
+import { fetchBlobChecked } from "./http";
+
 export type GalleryItem = {
   id: string;
   blob: Blob;
@@ -55,8 +57,7 @@ export async function addGalleryFromUrl(
   url: string,
   meta: Omit<GalleryItem, "id" | "blob" | "mimeType" | "createdAt" | "size">,
 ): Promise<GalleryItem> {
-  const res = await fetch(url);
-  const blob = await res.blob();
+  const blob = await fetchBlobChecked(url);
   const mimeType = blob.type || (meta.type === "video" ? "video/mp4" : "image/png");
   const inferredType: "image" | "video" =
     meta.type ?? (mimeType.startsWith("video/") ? "video" : "image");

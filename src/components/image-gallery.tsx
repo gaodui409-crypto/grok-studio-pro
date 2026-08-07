@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { GeneratedImage } from "@/lib/xai";
 import { Download, Maximize2 } from "lucide-react";
+import { toast } from "sonner";
 import { downloadOne, downloadAllAsZip } from "@/lib/download";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
@@ -17,6 +18,16 @@ export function ImageGallery({
 
   const filenameOf = (i: number) => `${prefix}-${Date.now()}-${i + 1}.png`;
 
+  const downloadZip = async () => {
+    const result = await downloadAllAsZip(
+      images.map((image, index) => ({ url: image.url, filename: filenameOf(index) })),
+      `${prefix}-${Date.now()}.zip`,
+    );
+    if (result.failed) {
+      toast.warning(`已下载 ${result.saved} 张，${result.failed} 张获取失败`);
+    }
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -26,12 +37,7 @@ export function ImageGallery({
         <Button
           size="sm"
           variant="secondary"
-          onClick={() =>
-            downloadAllAsZip(
-              images.map((img, i) => ({ url: img.url, filename: filenameOf(i) })),
-              `${prefix}-${Date.now()}.zip`,
-            )
-          }
+          onClick={downloadZip}
         >
           <Download className="mr-1.5 h-4 w-4" /> 批量下载 zip
         </Button>

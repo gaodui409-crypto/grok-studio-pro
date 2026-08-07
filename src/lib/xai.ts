@@ -1,5 +1,6 @@
 import { loadSettings, aspectToWH, type ProviderId } from "./settings";
 import { MODELSCOPE_IMAGE_MODEL, resolveImageModel } from "./provider-runtime.ts";
+import { assertResponseOk } from "./http.ts";
 
 export function currentProvider(): ProviderId {
   return loadSettings().provider;
@@ -79,16 +80,7 @@ async function request<T>(path: string, init: RequestInit): Promise<T> {
       ...(init.headers || {}),
     },
   });
-  if (!res.ok) {
-    let msg = `HTTP ${res.status}`;
-    try {
-      const data = await res.json();
-      msg = data?.error?.message || data?.error || data?.message || msg;
-    } catch {
-      try { msg = await res.text(); } catch { /* ignore */ }
-    }
-    throw new Error(msg);
-  }
+  await assertResponseOk(res);
   return res.json();
 }
 
@@ -163,7 +155,7 @@ async function generateImagesModelScope(p: ImageGenParams): Promise<GeneratedIma
         guidance_scale: 0.0,
       }),
     });
-    if (!start.ok) throw new Error(`ModelScope: ${await start.text()}`);
+    await assertResponseOk(start, "ModelScope");
     const { task_id } = (await start.json()) as { task_id: string };
     if (!task_id) throw new Error("ModelScope 未返回 task_id");
     while (true) {
@@ -171,7 +163,7 @@ async function generateImagesModelScope(p: ImageGenParams): Promise<GeneratedIma
       const poll = await fetch(`${baseUrl}/v1/tasks/${task_id}`, {
         headers: { Authorization: `Bearer ${cfg.modelscopeToken}`, "X-ModelScope-Task-Type": "image_generation" },
       });
-      if (!poll.ok) throw new Error(`ModelScope poll: ${await poll.text()}`);
+      await assertResponseOk(poll, "ModelScope poll");
       const data = (await poll.json()) as { task_status: string; output_images?: string[]; errors?: unknown };
       if (data.task_status === "SUCCEED") {
         const url = data.output_images?.[0];
@@ -209,11 +201,7 @@ async function generateImagesHF(p: ImageGenParams): Promise<GeneratedImage[]> {
         parameters: { width, height, num_inference_steps: 9, seed: Math.floor(Math.random() * 1e9) },
       }),
     });
-    if (!res.ok) {
-      let msg = `HTTP ${res.status}`;
-      try { msg = (await res.json())?.error || msg; } catch { try { msg = await res.text(); } catch { /* ignore */ } }
-      throw new Error(`HF: ${msg}`);
-    }
+    await assertResponseOk(res, "HF");
     const blob = await res.blob();
     const dataUri: string = await new Promise((resolve, reject) => {
       const r = new FileReader();
