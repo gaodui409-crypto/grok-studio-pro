@@ -24,6 +24,8 @@ import { runWithConcurrency } from "@/lib/concurrency";
 import { useAppStore, type ComicPageItem } from "@/lib/app-store";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
+import { attemptPersistence } from "@/lib/persistence";
+import { fetchBlobChecked } from "@/lib/http";
 
 export const Route = createFileRoute("/comic")({
   head: () => ({
@@ -205,6 +207,8 @@ function ColorizePanel() {
       ...s,
       colorPages: s.colorPages.map((p) => ({ ...p, status: "pending", resultUrl: undefined, error: undefined })),
     }));
+    let unsaved = 0;
+    const saveErrors: string[] = [];
 
     await runWithConcurrency(pages, async (page) => {
       updatePage(page.id, { status: "running", step: "上色中…" });
@@ -217,10 +221,16 @@ function ColorizePanel() {
         const img = data[0];
         if (!img?.url) throw new Error("API 未返回图片");
         updatePage(page.id, { status: "done", resultUrl: img.url });
-        addGalleryFromUrl(img.url, {
-          prompt: basePrompt, model, sceneName: "漫画上色", type: "image",
-          provider: providerLabel(currentProvider()),
-        }).catch(() => {});
+        const persistence = await attemptPersistence(() =>
+          addGalleryFromUrl(img.url, {
+            prompt: basePrompt, model, sceneName: "漫画上色", type: "image",
+            provider: providerLabel(currentProvider()),
+          }),
+        );
+        if (!persistence.saved) {
+          unsaved++;
+          saveErrors.push(`${page.name}: ${persistence.error.message}`);
+        }
       } catch (e) {
         updatePage(page.id, { status: "failed", error: (e as Error).message });
         toast.error(`第 ${page.name} 失败：${(e as Error).message}`);
@@ -230,22 +240,29 @@ function ColorizePanel() {
     }, settings.concurrency);
 
     set({ colorRunning: false });
-    toast.success("上色任务完成");
+    if (unsaved) {
+      toast.warning(`上色任务完成，但 ${unsaved} 张未保存到画廊：${saveErrors[0]}`);
+    } else {
+      toast.success("上色任务完成并已保存到画廊");
+    }
   };
 
   const downloadAll = async () => {
     const okPages = pages.filter((p) => p.resultUrl);
     if (!okPages.length) return toast.error("没有可下载结果");
     const zip = new JSZip();
+    let failed = 0;
     for (const p of okPages) {
       try {
-        const r = await fetch(p.resultUrl!);
-        const blob = await r.blob();
+        const blob = await fetchBlobChecked(p.resultUrl!);
         zip.file(`${p.name.replace(/\.[^.]+$/, "")}-colored.png`, blob);
-      } catch { /* skip */ }
+      } catch {
+        failed++;
+      }
     }
     const blob = await zip.generateAsync({ type: "blob" });
     saveAs(blob, `comic-colorized-${Date.now()}.zip`);
+    if (failed) toast.warning(`压缩包已生成，但 ${failed} 个结果获取失败`);
   };
 
   return (
@@ -326,6 +343,8 @@ function TranslatePanel() {
       ...s,
       translatePages: s.translatePages.map((p) => ({ ...p, status: "pending", resultUrl: undefined, translation: undefined, error: undefined })),
     }));
+    let unsaved = 0;
+    const saveErrors: string[] = [];
 
     await runWithConcurrency(pages, async (page) => {
       try {
@@ -350,10 +369,16 @@ function TranslatePanel() {
         const img = data[0];
         if (!img?.url) throw new Error("API 未返回图片");
         updatePage(page.id, { status: "done", resultUrl: img.url, step: "完成" });
-        addGalleryFromUrl(img.url, {
-          prompt: embedPrompt, model, sceneName: "漫画翻译", type: "image",
-          provider: providerLabel(currentProvider()),
-        }).catch(() => {});
+        const persistence = await attemptPersistence(() =>
+          addGalleryFromUrl(img.url, {
+            prompt: embedPrompt, model, sceneName: "漫画翻译", type: "image",
+            provider: providerLabel(currentProvider()),
+          }),
+        );
+        if (!persistence.saved) {
+          unsaved++;
+          saveErrors.push(`${page.name}: ${persistence.error.message}`);
+        }
       } catch (e) {
         updatePage(page.id, { status: "failed", error: (e as Error).message });
         toast.error(`${page.name} 失败：${(e as Error).message}`);
@@ -363,25 +388,32 @@ function TranslatePanel() {
     }, settings.concurrency);
 
     set({ translateRunning: false });
-    toast.success("翻译任务完成");
+    if (unsaved) {
+      toast.warning(`翻译任务完成，但 ${unsaved} 张未保存到画廊：${saveErrors[0]}`);
+    } else {
+      toast.success("翻译任务完成并已保存到画廊");
+    }
   };
 
   const downloadAll = async () => {
     const okPages = pages.filter((p) => p.resultUrl);
     if (!okPages.length) return toast.error("没有可下载结果");
     const zip = new JSZip();
+    let failed = 0;
     for (const p of okPages) {
       try {
-        const r = await fetch(p.resultUrl!);
-        const blob = await r.blob();
+        const blob = await fetchBlobChecked(p.resultUrl!);
         zip.file(`${p.name.replace(/\.[^.]+$/, "")}-translated.png`, blob);
         if (p.translation) {
           zip.file(`${p.name.replace(/\.[^.]+$/, "")}-translation.txt`, p.translation);
         }
-      } catch { /* skip */ }
+      } catch {
+        failed++;
+      }
     }
     const blob = await zip.generateAsync({ type: "blob" });
     saveAs(blob, `comic-translated-${Date.now()}.zip`);
+    if (failed) toast.warning(`压缩包已生成，但 ${failed} 个结果获取失败`);
   };
 
   return (
