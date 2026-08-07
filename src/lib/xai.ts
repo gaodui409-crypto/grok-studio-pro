@@ -1,4 +1,5 @@
 import { loadSettings, aspectToWH, type ProviderId } from "./settings";
+import { MODELSCOPE_IMAGE_MODEL, resolveImageModel } from "./provider-runtime.ts";
 
 export function currentProvider(): ProviderId {
   return loadSettings().provider;
@@ -93,10 +94,14 @@ async function request<T>(path: string, init: RequestInit): Promise<T> {
 
 export async function generateImages(p: ImageGenParams): Promise<GeneratedImage[]> {
   const cfg = loadSettings();
+  const model = resolveImageModel(cfg.provider, p.model, {
+    xai: cfg.imageModel,
+    hf: cfg.hfModel || "Tongyi-MAI/Z-Image-Turbo",
+  });
   if (cfg.provider === "modelscope") return generateImagesModelScope(p);
   if (cfg.provider === "hf") return generateImagesHF(p);
   const body = {
-    model: p.model ?? cfg.imageModel,
+    model,
     prompt: p.prompt,
     n: p.n ?? 1,
     aspect_ratio: p.aspect_ratio ?? "1:1",
@@ -151,7 +156,7 @@ async function generateImagesModelScope(p: ImageGenParams): Promise<GeneratedIma
       method: "POST",
       headers,
       body: JSON.stringify({
-        model: "Tongyi-MAI/Z-Image-Turbo",
+        model: MODELSCOPE_IMAGE_MODEL,
         prompt: p.prompt,
         width, height,
         num_inference_steps: 9,
@@ -185,7 +190,10 @@ async function generateImagesModelScope(p: ImageGenParams): Promise<GeneratedIma
 async function generateImagesHF(p: ImageGenParams): Promise<GeneratedImage[]> {
   const cfg = loadSettings();
   if (!cfg.hfToken) throw new Error("请先在设置中配置 Hugging Face Token");
-  const model = p.model || cfg.hfModel || "Tongyi-MAI/Z-Image-Turbo";
+  const model = resolveImageModel("hf", p.model, {
+    xai: cfg.imageModel,
+    hf: cfg.hfModel || "Tongyi-MAI/Z-Image-Turbo",
+  });
   const { width, height } = aspectToWH(p.aspect_ratio ?? "1:1", p.resolution ?? "1k");
   const n = p.n ?? 1;
   const runOne = async (): Promise<GeneratedImage> => {
