@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Images, Trash2, Download, Copy, Maximize2, CheckSquare, Square, AlertTriangle, Play, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import JSZip from "jszip";
@@ -21,6 +21,7 @@ import {
   getStorageEstimate, formatBytes, type GalleryMeta,
 } from "@/lib/gallery-db";
 import { cn } from "@/lib/utils";
+import { ObjectUrlRegistry } from "@/lib/object-url-registry";
 
 export const Route = createFileRoute("/gallery")({
   head: () => ({
@@ -39,6 +40,14 @@ function extOf(mime: string, type?: string) {
 }
 
 function GalleryPage() {
+  const urlRegistryRef = useRef<ObjectUrlRegistry | null>(null);
+  if (!urlRegistryRef.current) {
+    urlRegistryRef.current = new ObjectUrlRegistry(
+      (blob) => URL.createObjectURL(blob),
+      (url) => URL.revokeObjectURL(url),
+    );
+  }
+  const urlRegistry = urlRegistryRef.current;
   const [items, setItems] = useState<GalleryMeta[]>([]);
   const [storage, setStorage] = useState<{ usage: number; quota: number } | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -64,23 +73,26 @@ function GalleryPage() {
 
   useEffect(() => {
     let cancelled = false;
+    const currentIds = new Set(items.map((item) => item.id));
+    urlRegistry.reconcile(currentIds);
+    setUrlCache(urlRegistry.snapshot());
+
     (async () => {
-      for (const it of items) {
-        if (urlCache[it.id]) continue;
-        const full = await getGalleryItem(it.id);
+      for (const item of items) {
+        if (urlRegistry.has(item.id)) continue;
+        const full = await getGalleryItem(item.id);
         if (cancelled || !full) continue;
-        const url = URL.createObjectURL(full.blob);
-        setUrlCache((c) => ({ ...c, [it.id]: url }));
+        urlRegistry.register(item.id, full.blob);
+        setUrlCache(urlRegistry.snapshot());
       }
     })();
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items]);
 
-  useEffect(() => () => {
-    Object.values(urlCache).forEach((u) => URL.revokeObjectURL(u));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [items, urlRegistry]);
+
+  useEffect(() => () => urlRegistry.dispose(), [urlRegistry]);
 
   const scenes = useMemo(() => Array.from(new Set(items.map((i) => i.sceneName).filter(Boolean))) as string[], [items]);
   const chars = useMemo(() => Array.from(new Set(items.map((i) => i.character).filter(Boolean))) as string[], [items]);
