@@ -9,6 +9,8 @@
 import { create } from "zustand";
 import type { GeneratedImage, VideoStatus } from "./xai";
 import type { CharacterPreset } from "./character-presets";
+import type { Settings } from "./settings";
+import { getSettingsDefaultPatches } from "./settings-defaults";
 
 // ---------------- Text-to-image (/) ----------------
 export type T2IState = {
@@ -121,6 +123,7 @@ type Store = {
   setVideo: (patch: Partial<VideoState>) => void;
   setFanart: (patch: Partial<FanartState>) => void;
   setComic: (patch: Partial<ComicState>) => void;
+  applySettingsDefaults: (settings: Settings) => void;
   patchFanart: (fn: (s: FanartState) => FanartState) => void;
   patchComic: (fn: (s: ComicState) => ComicState) => void;
 };
@@ -208,6 +211,17 @@ export const useAppStore = create<Store>((set) => ({
   setVideo: (patch) => set((s) => ({ video: { ...s.video, ...patch } })),
   setFanart: (patch) => set((s) => ({ fanart: { ...s.fanart, ...patch } })),
   setComic: (patch) => set((s) => ({ comic: { ...s.comic, ...patch } })),
+  applySettingsDefaults: (settings) =>
+    set((state) => {
+      const patches = getSettingsDefaultPatches(settings);
+      return {
+        t2i: { ...state.t2i, ...patches.t2i },
+        i2i: { ...state.i2i, ...patches.i2i },
+        video: { ...state.video, ...patches.video },
+        fanart: { ...state.fanart, ...patches.fanart },
+        comic: { ...state.comic, ...patches.comic },
+      };
+    }),
   patchFanart: (fn) => set((s) => ({ fanart: fn(s.fanart) })),
   patchComic: (fn) => set((s) => ({ comic: fn(s.comic) })),
 }));

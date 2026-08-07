@@ -16,6 +16,7 @@ import {
   BUILTIN_PRESETS, loadCustomPresets, saveCustomPresets, newCustomPreset,
   type CharacterPreset,
 } from "@/lib/character-presets";
+import { useAppStore } from "@/lib/app-store";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({
@@ -29,6 +30,7 @@ export const Route = createFileRoute("/settings")({
 
 function SettingsPage() {
   const { settings, update } = useSettings();
+  const applySettingsDefaults = useAppStore((state) => state.applySettingsDefaults);
   const [draft, setDraft] = useState(settings);
   const [showKey, setShowKey] = useState(false);
 
@@ -36,7 +38,8 @@ function SettingsPage() {
 
   const save = () => {
     update(draft);
-    toast.success("设置已保存");
+    applySettingsDefaults(draft);
+    toast.success("设置已保存并应用");
   };
 
   return (

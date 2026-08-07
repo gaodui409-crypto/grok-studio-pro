@@ -1,7 +1,10 @@
 import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
+import { useEffect } from "react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { Toaster } from "@/components/ui/sonner";
+import { loadSettings } from "@/lib/settings";
+import { useAppStore } from "@/lib/app-store";
 
 import appCss from "../styles.css?url";
 
@@ -75,6 +78,12 @@ function RootShell({ children }: { children: React.ReactNode }) {
 }
 
 function RootComponent() {
+  const applySettingsDefaults = useAppStore((state) => state.applySettingsDefaults);
+
+  useEffect(() => {
+    applySettingsDefaults(loadSettings());
+  }, [applySettingsDefaults]);
+
   return (
     <SidebarProvider>
       <div className="flex min-h-screen w-full">
