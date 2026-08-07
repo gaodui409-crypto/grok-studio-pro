@@ -1,6 +1,19 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Settings as SettingsIcon, Save, Eye, EyeOff, Plus, Trash2, Pencil, Check, X, Users, Cloud } from "lucide-react";
+import {
+  Settings as SettingsIcon,
+  Save,
+  Eye,
+  EyeOff,
+  Plus,
+  Trash2,
+  Pencil,
+  Check,
+  X,
+  Users,
+  Cloud,
+  AlertTriangle,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,12 +21,26 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { PageHeader } from "@/components/page-header";
-import { AspectRatioSelect, ResolutionSelect, ImageModelSelect, VideoModelSelect } from "@/components/param-selects";
+import {
+  AspectRatioSelect,
+  ResolutionSelect,
+  ImageModelSelect,
+  VideoModelSelect,
+} from "@/components/param-selects";
 import { useSettings } from "@/hooks/use-settings";
 import { PROVIDERS, HF_MODEL_PRESETS, type ProviderId } from "@/lib/settings";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  BUILTIN_PRESETS, loadCustomPresets, saveCustomPresets, newCustomPreset,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  BUILTIN_PRESETS,
+  loadCustomPresets,
+  saveCustomPresets,
+  newCustomPreset,
   type CharacterPreset,
 } from "@/lib/character-presets";
 import { useAppStore } from "@/lib/app-store";
@@ -22,7 +49,7 @@ export const Route = createFileRoute("/settings")({
   head: () => ({
     meta: [
       { title: "设置 — Grok Studio" },
-      { name: "description", content: "配置 xAI API Key、代理地址、并发与默认参数。" },
+      { name: "description", content: "配置图片生成渠道、凭证、并发与默认参数。" },
     ],
   }),
   component: SettingsPage,
@@ -34,7 +61,9 @@ function SettingsPage() {
   const [draft, setDraft] = useState(settings);
   const [showKey, setShowKey] = useState(false);
 
-  useEffect(() => { setDraft(settings); }, [settings]);
+  useEffect(() => {
+    setDraft(settings);
+  }, [settings]);
 
   const save = () => {
     update(draft);
@@ -44,15 +73,30 @@ function SettingsPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 md:px-8">
-      <PageHeader title="设置" description="API Key、代理地址、并发与角色预设全部保存在浏览器 localStorage。" icon={SettingsIcon} />
+      <PageHeader
+        title="设置"
+        description="API Key、代理地址、并发与角色预设全部保存在浏览器 localStorage。"
+        icon={SettingsIcon}
+      />
 
       <div className="space-y-5 rounded-2xl border border-border/60 bg-card p-6 shadow-card">
         <div className="space-y-2">
-          <Label className="flex items-center gap-2"><Cloud className="h-4 w-4" /> 图片生成来源</Label>
-          <Select value={draft.provider} onValueChange={(v) => setDraft({ ...draft, provider: v as ProviderId })}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
+          <Label className="flex items-center gap-2">
+            <Cloud className="h-4 w-4" /> 图片生成来源
+          </Label>
+          <Select
+            value={draft.provider}
+            onValueChange={(v) => setDraft({ ...draft, provider: v as ProviderId })}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
-              {PROVIDERS.map((p) => <SelectItem key={p.id} value={p.id}>{p.label}</SelectItem>)}
+              {PROVIDERS.map((p) => (
+                <SelectItem key={p.id} value={p.id}>
+                  {p.label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <p className="text-xs text-muted-foreground">
@@ -75,13 +119,23 @@ function SettingsPage() {
                 <button
                   type="button"
                   onClick={() => setShowKey((v) => !v)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1.5 text-muted-foreground hover:text-foreground"
+                  aria-label={showKey ? "隐藏 API Key" : "显示 API Key"}
+                  className="absolute right-0.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded text-muted-foreground hover:text-foreground"
                 >
                   {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
               <p className="text-xs text-muted-foreground">
-                官方：<a href="https://console.x.ai" target="_blank" rel="noreferrer" className="text-primary-glow hover:underline">console.x.ai</a>；也可填入 NewAPI 中转 Key。
+                官方：
+                <a
+                  href="https://console.x.ai"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-primary-glow hover:underline"
+                >
+                  console.x.ai
+                </a>
+                ；也可填入 NewAPI 中转 Key。
               </p>
             </div>
 
@@ -93,7 +147,9 @@ function SettingsPage() {
                 placeholder="https://api.x.ai"
                 className="font-mono"
               />
-              <p className="text-xs text-muted-foreground">默认 https://api.x.ai，可改为 NewAPI 等中转地址。请求路径会自动拼接 /v1/...</p>
+              <p className="text-xs text-muted-foreground">
+                默认 https://api.x.ai，可改为 NewAPI 等中转地址。请求路径会自动拼接 /v1/...
+              </p>
             </div>
           </>
         )}
@@ -109,8 +165,16 @@ function SettingsPage() {
               className="font-mono"
             />
             <p className="text-xs text-muted-foreground">
-              获取地址：<a href="https://modelscope.cn/my/myaccesstoken" target="_blank" rel="noreferrer" className="text-primary-glow hover:underline">modelscope.cn</a>。
-              固定使用 Tongyi-MAI/Z-Image-Turbo（异步）。免费额度 2000/天，并发 ≤3。
+              获取地址：
+              <a
+                href="https://modelscope.cn/my/myaccesstoken"
+                target="_blank"
+                rel="noreferrer"
+                className="text-primary-glow hover:underline"
+              >
+                modelscope.cn
+              </a>
+              。 固定使用 Tongyi-MAI/Z-Image-Turbo（异步）。免费额度 2000/天，并发 ≤3。
             </p>
           </div>
         )}
@@ -127,7 +191,16 @@ function SettingsPage() {
                 className="font-mono"
               />
               <p className="text-xs text-muted-foreground">
-                获取地址：<a href="https://huggingface.co/settings/tokens" target="_blank" rel="noreferrer" className="text-primary-glow hover:underline">huggingface.co/settings/tokens</a>。免费用户约 80 次/天。
+                获取地址：
+                <a
+                  href="https://huggingface.co/settings/tokens"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-primary-glow hover:underline"
+                >
+                  huggingface.co/settings/tokens
+                </a>
+                。免费用户约 80 次/天。
               </p>
             </div>
             <div className="space-y-2">
@@ -154,30 +227,136 @@ function SettingsPage() {
           </>
         )}
 
+        {draft.provider === "aihorde" && (
+          <div className="space-y-2">
+            <Label>AI Horde API Key（可选）</Label>
+            <div className="relative">
+              <Input
+                type={showKey ? "text" : "password"}
+                value={draft.aiHordeApiKey}
+                onChange={(e) => setDraft({ ...draft, aiHordeApiKey: e.target.value })}
+                placeholder="留空则使用匿名 Key 0000000000"
+                className="pr-10 font-mono"
+              />
+              <button
+                type="button"
+                onClick={() => setShowKey((v) => !v)}
+                aria-label={showKey ? "隐藏 API Key" : "显示 API Key"}
+                className="absolute right-0.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded text-muted-foreground hover:text-foreground"
+              >
+                {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              留空使用匿名队列；个人 Key 可提高优先级。社区算力的等待时间和可用模型会变动。
+            </p>
+          </div>
+        )}
+
+        {draft.provider === "pollinations" && (
+          <>
+            <div className="space-y-2">
+              <Label>Pollinations API Key</Label>
+              <div className="relative">
+                <Input
+                  type={showKey ? "text" : "password"}
+                  value={draft.pollinationsApiKey}
+                  onChange={(e) => setDraft({ ...draft, pollinationsApiKey: e.target.value })}
+                  placeholder="pk_..."
+                  className="pr-10 font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowKey((v) => !v)}
+                  aria-label={showKey ? "隐藏 API Key" : "显示 API Key"}
+                  className="absolute right-0.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded text-muted-foreground hover:text-foreground"
+                >
+                  {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                当前接口使用 API Key / Pollen 额度，不将它标记为无限免费渠道。
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label>Pollinations 模型</Label>
+              <Input
+                value={draft.pollinationsModel}
+                onChange={(e) => setDraft({ ...draft, pollinationsModel: e.target.value })}
+                placeholder="flux"
+                className="font-mono"
+              />
+            </div>
+          </>
+        )}
+
+        {draft.provider === "pixai-pool" && (
+          <>
+            <div className="space-y-2">
+              <Label>PixAI 号池网址</Label>
+              <Input
+                value={draft.pixaiPoolBaseUrl}
+                onChange={(e) => setDraft({ ...draft, pixaiPoolBaseUrl: e.target.value })}
+                placeholder="https://imgapi.qianyimwl.top"
+                className="font-mono"
+              />
+            </div>
+            <div className="flex gap-3 rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+              <p className="text-foreground/90">
+                当前只有网页和模型列表，没有提交、轮询、结果的真实请求协议。提供一次生成的 HAR 或
+                DevTools Network 请求/响应后即可完成传输接入；此前不会向该网址猜测发包。
+              </p>
+            </div>
+          </>
+        )}
+
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <Label>并发请求数</Label>
             <span className="font-mono text-primary-glow">{draft.concurrency}</span>
           </div>
           <Slider
-            min={1} max={10} step={1}
+            min={1}
+            max={10}
+            step={1}
             value={[draft.concurrency]}
             onValueChange={(v) => setDraft({ ...draft, concurrency: v[0] })}
           />
           <p className="text-xs text-muted-foreground">
-            同人图批量、漫画上色、漫画翻译均使用此并发数。xAI 限频：图片 30 RPM、视频 60 RPM；ModelScope 建议 ≤3。
+            同人图批量、漫画上色、漫画翻译均使用此并发数。共享免费渠道或同时运行其他会话时建议设为
+            1。
           </p>
         </div>
 
         <div className="grid gap-4 md:grid-cols-2">
-          <AspectRatioSelect value={draft.defaultAspectRatio} onChange={(v) => setDraft({ ...draft, defaultAspectRatio: v })} />
-          <ResolutionSelect value={draft.defaultResolution} onChange={(v) => setDraft({ ...draft, defaultResolution: v as "1k" | "2k" })} />
-          {draft.provider === "xai" && <ImageModelSelect value={draft.imageModel} onChange={(v) => setDraft({ ...draft, imageModel: v })} />}
-          {draft.provider === "xai" && <VideoModelSelect value={draft.videoModel} onChange={(v) => setDraft({ ...draft, videoModel: v })} />}
+          <AspectRatioSelect
+            value={draft.defaultAspectRatio}
+            onChange={(v) => setDraft({ ...draft, defaultAspectRatio: v })}
+          />
+          <ResolutionSelect
+            value={draft.defaultResolution}
+            onChange={(v) => setDraft({ ...draft, defaultResolution: v as "1k" | "2k" })}
+          />
+          {draft.provider === "xai" && (
+            <ImageModelSelect
+              value={draft.imageModel}
+              onChange={(v) => setDraft({ ...draft, imageModel: v })}
+            />
+          )}
+          {draft.provider === "xai" && (
+            <VideoModelSelect
+              value={draft.videoModel}
+              onChange={(v) => setDraft({ ...draft, videoModel: v })}
+            />
+          )}
         </div>
 
         <div className="flex justify-end pt-2">
-          <Button onClick={save} className="bg-gradient-primary text-primary-foreground shadow-glow hover:opacity-95">
+          <Button
+            onClick={save}
+            className="bg-gradient-primary text-primary-foreground shadow-glow hover:opacity-95"
+          >
             <Save className="mr-2 h-4 w-4" /> 保存设置
           </Button>
         </div>
@@ -205,11 +384,17 @@ function PresetManager() {
   };
 
   const startEdit = (p: CharacterPreset) => {
-    setDraft({ ...p, scenes: p.scenes.map((s) => ({ ...s, outfits: [...s.outfits], actions: [...s.actions] })) });
+    setDraft({
+      ...p,
+      scenes: p.scenes.map((s) => ({ ...s, outfits: [...s.outfits], actions: [...s.actions] })),
+    });
     setEditingId(p.id);
   };
 
-  const cancelEdit = () => { setEditingId(null); setDraft(null); };
+  const cancelEdit = () => {
+    setEditingId(null);
+    setDraft(null);
+  };
 
   const commitEdit = () => {
     if (!draft) return;
@@ -226,7 +411,10 @@ function PresetManager() {
 
   const updateScene = (idx: number, patch: Partial<CharacterPreset["scenes"][number]>) => {
     if (!draft) return;
-    setDraft({ ...draft, scenes: draft.scenes.map((s, i) => (i === idx ? { ...s, ...patch } : s)) });
+    setDraft({
+      ...draft,
+      scenes: draft.scenes.map((s, i) => (i === idx ? { ...s, ...patch } : s)),
+    });
   };
 
   return (
@@ -244,7 +432,10 @@ function PresetManager() {
         <p className="text-xs uppercase tracking-wider text-muted-foreground">内置预设（只读）</p>
         <div className="flex flex-wrap gap-1.5">
           {BUILTIN_PRESETS.map((p) => (
-            <span key={p.id} className="rounded-full border border-border/60 bg-surface px-2.5 py-1 text-xs">
+            <span
+              key={p.id}
+              className="rounded-full border border-border/60 bg-surface px-2.5 py-1 text-xs"
+            >
               ★ {p.name}
             </span>
           ))}
@@ -252,36 +443,66 @@ function PresetManager() {
       </div>
 
       <div className="space-y-2">
-        <p className="text-xs uppercase tracking-wider text-muted-foreground">自定义预设 ({list.length})</p>
+        <p className="text-xs uppercase tracking-wider text-muted-foreground">
+          自定义预设 ({list.length})
+        </p>
         {list.length === 0 && !editingId && (
           <p className="rounded-lg border border-dashed border-border/60 p-4 text-center text-xs text-muted-foreground">
             暂无自定义预设。点击「新建预设」添加你自己的角色。
           </p>
         )}
         <div className="space-y-2">
-          {list.map((p) => (
+          {list.map((p) =>
             editingId === p.id && draft ? (
-              <PresetEditor key={p.id} draft={draft} setDraft={setDraft} onCancel={cancelEdit} onCommit={commitEdit} updateScene={updateScene} />
+              <PresetEditor
+                key={p.id}
+                draft={draft}
+                setDraft={setDraft}
+                onCancel={cancelEdit}
+                onCommit={commitEdit}
+                updateScene={updateScene}
+              />
             ) : (
-              <div key={p.id} className="flex items-start justify-between gap-2 rounded-lg border border-border/60 bg-surface/40 p-3">
+              <div
+                key={p.id}
+                className="flex items-start justify-between gap-2 rounded-lg border border-border/60 bg-surface/40 p-3"
+              >
                 <div className="min-w-0 flex-1">
                   <div className="font-medium">{p.name}</div>
                   <p className="line-clamp-2 text-xs text-muted-foreground">{p.description}</p>
-                  <p className="mt-1 text-[11px] text-muted-foreground">{p.scenes.length} 个场景配置</p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">
+                    {p.scenes.length} 个场景配置
+                  </p>
                 </div>
                 <div className="flex shrink-0 gap-1">
-                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => startEdit(p)}>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7"
+                    onClick={() => startEdit(p)}
+                  >
                     <Pencil className="h-3.5 w-3.5" />
                   </Button>
-                  <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => remove(p.id)}>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7 text-destructive"
+                    onClick={() => remove(p.id)}
+                  >
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               </div>
-            )
-          ))}
+            ),
+          )}
           {editingId && draft && !list.some((p) => p.id === draft.id) && (
-            <PresetEditor draft={draft} setDraft={setDraft} onCancel={cancelEdit} onCommit={commitEdit} updateScene={updateScene} />
+            <PresetEditor
+              draft={draft}
+              setDraft={setDraft}
+              onCancel={cancelEdit}
+              onCommit={commitEdit}
+              updateScene={updateScene}
+            />
           )}
         </div>
       </div>
@@ -290,7 +511,11 @@ function PresetManager() {
 }
 
 function PresetEditor({
-  draft, setDraft, onCancel, onCommit, updateScene,
+  draft,
+  setDraft,
+  onCancel,
+  onCommit,
+  updateScene,
 }: {
   draft: CharacterPreset;
   setDraft: (p: CharacterPreset) => void;
@@ -299,7 +524,10 @@ function PresetEditor({
   updateScene: (idx: number, patch: Partial<CharacterPreset["scenes"][number]>) => void;
 }) {
   const addScene = () =>
-    setDraft({ ...draft, scenes: [...draft.scenes, { sceneName: "新场景", outfits: [], actions: [] }] });
+    setDraft({
+      ...draft,
+      scenes: [...draft.scenes, { sceneName: "新场景", outfits: [], actions: [] }],
+    });
   const removeScene = (i: number) =>
     setDraft({ ...draft, scenes: draft.scenes.filter((_, idx) => idx !== i) });
 
@@ -308,11 +536,20 @@ function PresetEditor({
       <div className="grid gap-2 md:grid-cols-2">
         <div>
           <Label className="text-xs">名称</Label>
-          <Input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} className="h-8 text-sm" />
+          <Input
+            value={draft.name}
+            onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+            className="h-8 text-sm"
+          />
         </div>
         <div>
           <Label className="text-xs">默认画风</Label>
-          <Input value={draft.defaultStyle ?? ""} onChange={(e) => setDraft({ ...draft, defaultStyle: e.target.value })} className="h-8 text-sm" placeholder="动漫赛璐璐" />
+          <Input
+            value={draft.defaultStyle ?? ""}
+            onChange={(e) => setDraft({ ...draft, defaultStyle: e.target.value })}
+            className="h-8 text-sm"
+            placeholder="动漫赛璐璐"
+          />
         </div>
       </div>
       <div>
@@ -325,31 +562,65 @@ function PresetEditor({
       </div>
       <div>
         <Label className="text-xs">默认光影</Label>
-        <Input value={draft.defaultLighting ?? ""} onChange={(e) => setDraft({ ...draft, defaultLighting: e.target.value })} className="h-8 text-sm" placeholder="柔和晨光" />
+        <Input
+          value={draft.defaultLighting ?? ""}
+          onChange={(e) => setDraft({ ...draft, defaultLighting: e.target.value })}
+          className="h-8 text-sm"
+          placeholder="柔和晨光"
+        />
       </div>
 
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <Label className="text-xs">场景配置（场景名匹配场景树中的场景）</Label>
-          <Button size="sm" variant="ghost" onClick={addScene}><Plus className="h-3.5 w-3.5" /> 添加</Button>
+          <Button size="sm" variant="ghost" onClick={addScene}>
+            <Plus className="h-3.5 w-3.5" /> 添加
+          </Button>
         </div>
         {draft.scenes.map((s, i) => (
-          <div key={i} className="space-y-1.5 rounded border border-border/60 bg-background/60 p-2 text-xs">
+          <div
+            key={i}
+            className="space-y-1.5 rounded border border-border/60 bg-background/60 p-2 text-xs"
+          >
             <div className="flex items-center gap-2">
-              <Input value={s.sceneName} onChange={(e) => updateScene(i, { sceneName: e.target.value })} className="h-7 w-32 text-xs" placeholder="场景名" />
-              <Button size="icon" variant="ghost" className="ml-auto h-6 w-6 text-destructive" onClick={() => removeScene(i)}>
+              <Input
+                value={s.sceneName}
+                onChange={(e) => updateScene(i, { sceneName: e.target.value })}
+                className="h-7 w-32 text-xs"
+                placeholder="场景名"
+              />
+              <Button
+                size="icon"
+                variant="ghost"
+                className="ml-auto h-6 w-6 text-destructive"
+                onClick={() => removeScene(i)}
+              >
                 <Trash2 className="h-3 w-3" />
               </Button>
             </div>
             <Textarea
               value={s.outfits.join("\n")}
-              onChange={(e) => updateScene(i, { outfits: e.target.value.split("\n").map((x) => x.trim()).filter(Boolean) })}
+              onChange={(e) =>
+                updateScene(i, {
+                  outfits: e.target.value
+                    .split("\n")
+                    .map((x) => x.trim())
+                    .filter(Boolean),
+                })
+              }
               className="min-h-[60px] resize-none text-xs"
               placeholder="服装（每行一个）"
             />
             <Textarea
               value={s.actions.join("\n")}
-              onChange={(e) => updateScene(i, { actions: e.target.value.split("\n").map((x) => x.trim()).filter(Boolean) })}
+              onChange={(e) =>
+                updateScene(i, {
+                  actions: e.target.value
+                    .split("\n")
+                    .map((x) => x.trim())
+                    .filter(Boolean),
+                })
+              }
               className="min-h-[60px] resize-none text-xs"
               placeholder="动作（每行一个）"
             />
@@ -358,8 +629,12 @@ function PresetEditor({
       </div>
 
       <div className="flex justify-end gap-2">
-        <Button size="sm" variant="ghost" onClick={onCancel}><X className="mr-1 h-3.5 w-3.5" /> 取消</Button>
-        <Button size="sm" onClick={onCommit}><Check className="mr-1 h-3.5 w-3.5" /> 保存</Button>
+        <Button size="sm" variant="ghost" onClick={onCancel}>
+          <X className="mr-1 h-3.5 w-3.5" /> 取消
+        </Button>
+        <Button size="sm" onClick={onCommit}>
+          <Check className="mr-1 h-3.5 w-3.5" /> 保存
+        </Button>
       </div>
     </div>
   );

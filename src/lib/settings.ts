@@ -7,24 +7,48 @@ export const VIDEO_MODELS = [
   { id: "grok-imagine-video", label: "Grok Imagine · Video (480p $0.05/s · 720p $0.07/s)" },
 ] as const;
 
-export type ProviderId = "xai" | "modelscope" | "hf";
+export type ProviderId = "xai" | "modelscope" | "hf" | "aihorde" | "pollinations" | "pixai-pool";
 
 export const PROVIDERS: { id: ProviderId; label: string; desc: string }[] = [
-  { id: "xai", label: "xAI / NewAPI 中转", desc: "支持文生图、图生图、视频。可用于官方 api.x.ai 或兼容的 NewAPI 中转。" },
-  { id: "modelscope", label: "魔搭 ModelScope（免费）", desc: "Tongyi-MAI/Z-Image-Turbo，2000/天，仅文生图。" },
+  {
+    id: "xai",
+    label: "xAI / NewAPI 中转",
+    desc: "支持文生图、图生图、视频。可用于官方 api.x.ai 或兼容的 NewAPI 中转。",
+  },
+  {
+    id: "modelscope",
+    label: "魔搭 ModelScope（免费）",
+    desc: "Tongyi-MAI/Z-Image-Turbo，2000/天，仅文生图。",
+  },
   { id: "hf", label: "Hugging Face", desc: "HF Inference API，免费用户约 80 次/天，仅文生图。" },
+  {
+    id: "aihorde",
+    label: "AI Horde（社区算力）",
+    desc: "可匿名使用，但匿名任务排队优先级最低，仅文生图。",
+  },
+  {
+    id: "pollinations",
+    label: "Pollinations",
+    desc: "使用 API Key / Pollen 额度，直接返回图片，仅文生图。",
+  },
+  {
+    id: "pixai-pool",
+    label: "PixAI 号池（待协议）",
+    desc: "已登记 imgapi.qianyimwl.top；需提供真实 HAR / Network 请求后才能启用生成。",
+  },
 ];
 
-export const HF_MODEL_PRESETS = [
-  "Tongyi-MAI/Z-Image-Turbo",
-  "black-forest-labs/FLUX.1-Krea-dev",
-];
+export const HF_MODEL_PRESETS = ["Tongyi-MAI/Z-Image-Turbo", "black-forest-labs/FLUX.1-Krea-dev"];
 
-export const PROVIDER_FEATURES: Record<ProviderId, { t2i: boolean; i2i: boolean; video: boolean }> = {
-  xai: { t2i: true, i2i: true, video: true },
-  modelscope: { t2i: true, i2i: false, video: false },
-  hf: { t2i: true, i2i: false, video: false },
-};
+export const PROVIDER_FEATURES: Record<ProviderId, { t2i: boolean; i2i: boolean; video: boolean }> =
+  {
+    xai: { t2i: true, i2i: true, video: true },
+    modelscope: { t2i: true, i2i: false, video: false },
+    hf: { t2i: true, i2i: false, video: false },
+    aihorde: { t2i: true, i2i: false, video: false },
+    pollinations: { t2i: true, i2i: false, video: false },
+    "pixai-pool": { t2i: false, i2i: false, video: false },
+  };
 
 export type Settings = {
   // Provider selection
@@ -39,6 +63,13 @@ export type Settings = {
   // Hugging Face
   hfToken: string;
   hfModel: string;
+  // AI Horde
+  aiHordeApiKey: string;
+  // Pollinations
+  pollinationsApiKey: string;
+  pollinationsModel: string;
+  // PixAI account pool
+  pixaiPoolBaseUrl: string;
   // Shared defaults
   defaultResolution: "1k" | "2k";
   defaultAspectRatio: string;
@@ -56,10 +87,33 @@ export const defaultSettings: Settings = {
   modelscopeToken: "",
   hfToken: "",
   hfModel: "Tongyi-MAI/Z-Image-Turbo",
+  aiHordeApiKey: "",
+  pollinationsApiKey: "",
+  pollinationsModel: "flux",
+  pixaiPoolBaseUrl: "https://imgapi.qianyimwl.top",
   defaultResolution: "1k",
   defaultAspectRatio: "1:1",
   concurrency: 3,
 };
+
+export function providerSetupIssue(settings: Settings): string | null {
+  if (settings.provider === "xai") {
+    return settings.apiKey ? null : "xAI / NewAPI API Key";
+  }
+  if (settings.provider === "modelscope") {
+    return settings.modelscopeToken ? null : "ModelScope Token";
+  }
+  if (settings.provider === "hf") {
+    return settings.hfToken ? null : "Hugging Face Token";
+  }
+  if (settings.provider === "pollinations") {
+    return settings.pollinationsApiKey.trim() ? null : "Pollinations API Key";
+  }
+  if (settings.provider === "pixai-pool") {
+    return "PixAI 号池请求协议（HAR / Network）";
+  }
+  return null;
+}
 
 export function loadSettings(): Settings {
   if (typeof window === "undefined") return defaultSettings;
@@ -81,11 +135,15 @@ export function saveSettings(s: Settings) {
 }
 
 // Map an aspect ratio + resolution tier to width/height for non-xAI providers.
-export function aspectToWH(aspect: string, resolution: "1k" | "2k" = "1k"): { width: number; height: number } {
+export function aspectToWH(
+  aspect: string,
+  resolution: "1k" | "2k" = "1k",
+): { width: number; height: number } {
   const base = resolution === "2k" ? 2048 : 1024;
   const m = /^(\d+):(\d+)$/.exec(aspect);
   if (!m) return { width: base, height: base };
-  const w = +m[1], h = +m[2];
+  const w = +m[1],
+    h = +m[2];
   if (w >= h) {
     const width = base;
     const height = Math.round((base * h) / w / 8) * 8;

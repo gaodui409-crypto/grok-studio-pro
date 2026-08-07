@@ -3,6 +3,7 @@ import test from "node:test";
 import { createImageProviderRegistry } from "./registry.ts";
 import type { ImageProviderAdapter } from "./types.ts";
 import type { ProviderId } from "../settings.ts";
+import { imageProviderRegistry } from "./index.ts";
 
 function stubAdapter(id: ProviderId, label: string, supportsEditing = false): ImageProviderAdapter {
   return {
@@ -57,4 +58,10 @@ test("reports the selected provider when image editing is unsupported", () => {
 
 test("rejects duplicate provider registrations", () => {
   assert.throws(() => createImageProviderRegistry([xai, xai]), /重复的图片来源：xai/);
+});
+
+test("registers every production image provider", () => {
+  assert.equal(imageProviderRegistry.get("aihorde" as ProviderId).label, "AI Horde");
+  assert.equal(imageProviderRegistry.get("pollinations" as ProviderId).label, "Pollinations");
+  assert.equal(imageProviderRegistry.get("pixai-pool" as ProviderId).label, "PixAI 号池");
 });
