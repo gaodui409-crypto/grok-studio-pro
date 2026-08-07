@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Sparkles, Loader2, Plus, Trash2, Pencil, Check, X,
-  ChevronDown, RotateCcw, Wand2, UserCircle2,
+  ChevronDown, RotateCcw, Wand2, UserCircle2, Ban,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -36,6 +36,7 @@ import {
 } from "@/lib/character-presets";
 import { useAppStore, applyPresetToFanart, presetExtraItems, type SceneSel } from "@/lib/app-store";
 import { cn } from "@/lib/utils";
+import { isAbortError } from "@/lib/http";
 
 export const Route = createFileRoute("/fanart")({
   head: () => ({
@@ -82,6 +83,9 @@ function FanartPage() {
   const f = useAppStore((s) => s.fanart);
   const setF = useAppStore((s) => s.setFanart);
   const patchF = useAppStore((s) => s.patchFanart);
+  const runRef = useRef<AbortController | null>(null);
+
+  const cancelRun = () => runRef.current?.abort();
 
   // Persistent scene tree (lives in localStorage, separate from per-page store)
   const [tree, setTree] = useState<SceneTreeData>(loadSceneTree);
@@ -234,16 +238,33 @@ function FanartPage() {
     if (!charDesc.trim()) return toast.error("请填写角色描述");
     if (!promptItems.length) return toast.error("请至少勾选一个服装或动作");
 
+    const controller = new AbortController();
+    runRef.current = controller;
     setF({ running: true, done: 0, total: promptItems.length, currentPrompt: "" });
     let success = 0;
 
     try {
       await runWithConcurrency(promptItems, async (item) => {
+        controller.signal.throwIfAborted();
         setF({ currentPrompt: item.prompt });
         try {
           const data = refImages.length
-            ? await editImages({ prompt: item.prompt, images: refImages, n: 1, resolution, model })
-            : await generateImages({ prompt: item.prompt, n: 1, aspect_ratio: aspect, resolution, model });
+            ? await editImages({
+                prompt: item.prompt,
+                images: refImages,
+                n: 1,
+                resolution,
+                model,
+                signal: controller.signal,
+              })
+            : await generateImages({
+                prompt: item.prompt,
+                n: 1,
+                aspect_ratio: aspect,
+                resolution,
+                model,
+                signal: controller.signal,
+              });
           for (const img of data) {
             try {
               await addGalleryFromUrl(img.url, {
@@ -261,14 +282,21 @@ function FanartPage() {
             }
           }
         } catch (e) {
+          if (isAbortError(e)) throw e;
           toast.error(`「${item.sceneName} · ${item.action || item.outfit}」失败：${(e as Error).message}`);
         } finally {
           patchF((s) => ({ ...s, done: s.done + 1 }));
         }
       }, settings.concurrency);
       toast.success(`批量完成，已保存到画廊 ${success} 张`);
+    } catch (e) {
+      if (isAbortError(e)) toast.info("已取消批量生成");
+      else toast.error((e as Error).message);
     } finally {
-      setF({ running: false, currentPrompt: "" });
+      if (runRef.current === controller) {
+        runRef.current = null;
+        setF({ running: false, currentPrompt: "" });
+      }
     }
   };
 
@@ -568,14 +596,21 @@ function FanartPage() {
                 </div>
               )}
 
-              <Button
-                onClick={handleRun}
-                disabled={running || !promptItems.length}
-                className="w-full bg-gradient-primary text-primary-foreground shadow-glow hover:opacity-95"
-              >
-                {running ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                {running ? "批量生成中…" : `开始批量生成 · ${promptItems.length} 张`}
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleRun}
+                  disabled={running || !promptItems.length}
+                  className="flex-1 bg-gradient-primary text-primary-foreground shadow-glow hover:opacity-95"
+                >
+                  {running ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                  {running ? "批量生成中…" : `开始批量生成 · ${promptItems.length} 张`}
+                </Button>
+                {running && (
+                  <Button type="button" variant="secondary" onClick={cancelRun}>
+                    <Ban className="mr-2 h-4 w-4" /> 取消
+                  </Button>
+                )}
+              </div>
             </div>
 
             {/* Prompt preview */}

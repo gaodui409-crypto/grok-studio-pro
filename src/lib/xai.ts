@@ -1,6 +1,7 @@
 import { loadSettings, aspectToWH, type ProviderId } from "./settings";
 import { MODELSCOPE_IMAGE_MODEL, resolveImageModel } from "./provider-runtime.ts";
 import { assertResponseOk } from "./http.ts";
+import { pollModelScopeTask, type ModelScopeTaskStatus } from "./modelscope-polling.ts";
 
 export function currentProvider(): ProviderId {
   return loadSettings().provider;
@@ -16,6 +17,7 @@ export type ImageGenParams = {
   aspect_ratio?: string;
   resolution?: "1k" | "2k";
   model?: string;
+  signal?: AbortSignal;
 };
 
 export type ImageEditParams = {
@@ -24,6 +26,7 @@ export type ImageEditParams = {
   n?: number;
   resolution?: "1k" | "2k";
   model?: string;
+  signal?: AbortSignal;
 };
 
 export type VideoGenParams = {
@@ -102,6 +105,7 @@ export async function generateImages(p: ImageGenParams): Promise<GeneratedImage[
   };
   const data = await request<{ data: RawImage[] }>("/v1/images/generations", {
     method: "POST",
+    signal: p.signal,
     body: JSON.stringify(body),
   });
   return data.data.map(normalizeImage);
@@ -126,6 +130,7 @@ export async function editImages(p: ImageEditParams): Promise<GeneratedImage[]> 
   }
   const data = await request<{ data: RawImage[] }>("/v1/images/edits", {
     method: "POST",
+    signal: p.signal,
     body: JSON.stringify(body),
   });
   return data.data.map(normalizeImage);
@@ -146,6 +151,7 @@ async function generateImagesModelScope(p: ImageGenParams): Promise<GeneratedIma
   const runOne = async (): Promise<GeneratedImage> => {
     const start = await fetch(`${baseUrl}/v1/images/generations`, {
       method: "POST",
+      signal: p.signal,
       headers,
       body: JSON.stringify({
         model: MODELSCOPE_IMAGE_MODEL,
@@ -158,20 +164,18 @@ async function generateImagesModelScope(p: ImageGenParams): Promise<GeneratedIma
     await assertResponseOk(start, "ModelScope");
     const { task_id } = (await start.json()) as { task_id: string };
     if (!task_id) throw new Error("ModelScope 未返回 task_id");
-    while (true) {
-      await new Promise((r) => setTimeout(r, 5000));
+    const url = await pollModelScopeTask(async () => {
       const poll = await fetch(`${baseUrl}/v1/tasks/${task_id}`, {
-        headers: { Authorization: `Bearer ${cfg.modelscopeToken}`, "X-ModelScope-Task-Type": "image_generation" },
+        signal: p.signal,
+        headers: {
+          Authorization: `Bearer ${cfg.modelscopeToken}`,
+          "X-ModelScope-Task-Type": "image_generation",
+        },
       });
       await assertResponseOk(poll, "ModelScope poll");
-      const data = (await poll.json()) as { task_status: string; output_images?: string[]; errors?: unknown };
-      if (data.task_status === "SUCCEED") {
-        const url = data.output_images?.[0];
-        if (!url) throw new Error("ModelScope 未返回 output_images");
-        return { url, mime_type: "image/png" };
-      }
-      if (data.task_status === "FAILED") throw new Error(`ModelScope 任务失败: ${JSON.stringify(data.errors)}`);
-    }
+      return poll.json() as Promise<ModelScopeTaskStatus>;
+    }, { signal: p.signal });
+    return { url, mime_type: "image/png" };
   };
   const out: GeneratedImage[] = [];
   for (let i = 0; i < n; i++) out.push(await runOne());
@@ -191,6 +195,7 @@ async function generateImagesHF(p: ImageGenParams): Promise<GeneratedImage[]> {
   const runOne = async (): Promise<GeneratedImage> => {
     const res = await fetch(`https://api-inference.huggingface.co/models/${model}`, {
       method: "POST",
+      signal: p.signal,
       headers: {
         Authorization: `Bearer ${cfg.hfToken}`,
         "Content-Type": "application/json",

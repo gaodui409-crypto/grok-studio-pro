@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { ImageIcon, Sparkles, Loader2 } from "lucide-react";
+import { useRef } from "react";
+import { ImageIcon, Sparkles, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -12,6 +13,7 @@ import { AspectRatioSelect, ResolutionSelect, ImageModelSelect } from "@/compone
 import { generateImages, currentProvider, providerLabel } from "@/lib/xai";
 import { addGalleryFromUrl } from "@/lib/gallery-db";
 import { useAppStore } from "@/lib/app-store";
+import { isAbortError } from "@/lib/http";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -27,12 +29,17 @@ function Index() {
   const t2i = useAppStore((s) => s.t2i);
   const setT2I = useAppStore((s) => s.setT2I);
   const { prompt, n, aspect, resolution, model, loading, images } = t2i;
+  const generationRef = useRef<AbortController | null>(null);
+
+  const cancelGenerate = () => generationRef.current?.abort();
 
   const handleGenerate = async () => {
     if (!prompt.trim()) return toast.error("请输入提示词");
+    const controller = new AbortController();
+    generationRef.current = controller;
     setT2I({ loading: true });
     try {
-      const data = await generateImages({ prompt, n, aspect_ratio: aspect, resolution, model });
+      const data = await generateImages({ prompt, n, aspect_ratio: aspect, resolution, model, signal: controller.signal });
       setT2I({ images: data });
       toast.success(`已生成 ${data.length} 张图片`);
       const prov = currentProvider();
@@ -42,9 +49,13 @@ function Index() {
         .then(() => toast.success("已自动保存到画廊"))
         .catch((e) => toast.error(`画廊保存失败：${(e as Error).message}`));
     } catch (e) {
-      toast.error((e as Error).message);
+      if (isAbortError(e)) toast.info("已取消生成");
+      else toast.error((e as Error).message);
     } finally {
-      setT2I({ loading: false });
+      if (generationRef.current === controller) {
+        generationRef.current = null;
+        setT2I({ loading: false });
+      }
     }
   };
 
@@ -69,6 +80,11 @@ function Index() {
               {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
               {loading ? "生成中…" : "生成图片"}
             </Button>
+            {loading && (
+              <Button type="button" variant="secondary" onClick={cancelGenerate}>
+                <X className="mr-2 h-4 w-4" /> 取消
+              </Button>
+            )}
           </div>
         </div>
 
