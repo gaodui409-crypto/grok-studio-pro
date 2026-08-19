@@ -86,7 +86,7 @@ bun run dev
 - AI Horde：Key 可以留空，程序会使用匿名 Key `0000000000`。如果有个人 Key，填入后可获得更高的队列优先级。
 - Pollinations：填写 Pollinations API Key 和模型名。该服务按 API Key / Pollen 额度运行，不应当作无限免费渠道。
 - PixAI 官方 API：普通用户需申请 PixAI v2 API Key 并等待审核，会员可直接获取；公开免费额度未知。填写 API Key 和模型版本 ID。默认模型为 Tsubaki.2（`1983308862240288769`），也可选择 Haruka v2（`1861558740588989558`）或 Hoshino v2（`1954632828118619567`）。该渠道只支持文生图，多张图片会逐张提交；项目的 `2k` 档会映射到 PixAI 支持的 `1.5k`。PixAI 不支持通用选项中的 `2:1`、`1:2` 和 `auto`，选择这些比例时会在发包前给出提示。
-- PixAI 网页 Token（实验性）：在本人已登录的 PixAI 网页会话中，从浏览器 DevTools 的 LocalStorage 手工复制 `api.pixai.art:token` 的 value，并填写当前网页 GraphQL 请求使用的 `modelId`。网页登录 Token 是敏感登录凭证，只保存在当前浏览器 `localStorage`，会过期；项目不自动读取网页存储，也不实现登录。官方 REST 的 `modelVersionId` 与网页 GraphQL 的 `modelId` 不同，不能混用。该渠道只支持文生图，单次多图请求会逐张串行；旧 GraphQL schema、真实 Token 和 CORS 尚未验收，PixAI 控制账号额度且不保证免费。
+- PixAI 网页 Token（实验性）：在本人已登录的 PixAI 网页会话中，从浏览器 DevTools 的 LocalStorage 手工复制 `api.pixai.art:token` 的 value，并填写当前网页 GraphQL 请求使用的 `modelId`。网页登录 Token 是敏感登录凭证，只保存在当前浏览器 `localStorage`，会过期；项目不自动读取网页存储，也不实现登录。官方 REST 的 `modelVersionId` 与网页 GraphQL 的 `modelId` 不同，不能混用。该渠道只支持文生图，单次多图请求会逐张串行；画面比例为 `auto` 时会在发包前拒绝，请先切换为具体比例（如 `1:1`、`16:9` 或 `9:16`）；旧 GraphQL schema、真实 Token 和 CORS 尚未验收，PixAI 控制账号额度且不保证免费。
 - PixAI 号池：目前仅保存网站地址，尚不能生成图片。
 
 Key 和 Token 仅保存在当前浏览器的 `localStorage` 中。发起生成时，它们会直接发送给你选中的 Provider 或 NewAPI 中转。请勿在公共电脑上保存私人凭证。

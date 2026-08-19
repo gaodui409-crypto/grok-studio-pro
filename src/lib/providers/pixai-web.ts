@@ -13,21 +13,48 @@ export function pixAiWebDimensions(
 
   const ratioWidth = Number(match[1]);
   const ratioHeight = Number(match[2]);
-  if (ratioWidth <= 0 || ratioHeight <= 0) {
-    throw new Error(`PixAI 网页渠道不支持画面比例：${aspectRatio}。宽高比必须大于零。`);
+  if (
+    !Number.isFinite(ratioWidth) ||
+    !Number.isFinite(ratioHeight) ||
+    ratioWidth <= 0 ||
+    ratioHeight <= 0
+  ) {
+    throw new Error(
+      `PixAI 网页渠道不支持画面比例：${aspectRatio}。宽高比必须是有限且大于零的数字。`,
+    );
   }
 
   const longestSide = resolution === "2k" ? 1536 : 1024;
-  if (ratioWidth >= ratioHeight) {
-    return {
-      width: longestSide,
-      height: Math.max(8, Math.round((longestSide * ratioHeight) / ratioWidth / 8) * 8),
-    };
+  const rawShortSide =
+    ratioWidth >= ratioHeight
+      ? (longestSide * ratioHeight) / ratioWidth
+      : (longestSide * ratioWidth) / ratioHeight;
+  if (!Number.isFinite(rawShortSide) || rawShortSide < 8) {
+    throw new Error("PixAI 网页渠道计算出的图片尺寸无效，短边必须是有限且至少 8 像素。");
   }
-  return {
-    width: Math.max(8, Math.round((longestSide * ratioWidth) / ratioHeight / 8) * 8),
-    height: longestSide,
-  };
+
+  const alignedShortSide = Math.round(rawShortSide / 8) * 8;
+  const dimensions =
+    ratioWidth >= ratioHeight
+      ? {
+          width: longestSide,
+          height: alignedShortSide,
+        }
+      : {
+          width: alignedShortSide,
+          height: longestSide,
+        };
+
+  if (
+    !Number.isFinite(dimensions.width) ||
+    !Number.isFinite(dimensions.height) ||
+    dimensions.width < 8 ||
+    dimensions.height < 8
+  ) {
+    throw new Error("PixAI 网页渠道计算出的图片尺寸无效，必须是有限且至少 8 像素。");
+  }
+
+  return dimensions;
 }
 
 async function generateImages(params: ImageGenParams) {

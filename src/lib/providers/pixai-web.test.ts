@@ -19,6 +19,16 @@ test("rejects the automatic aspect ratio before creating a PixAI web task", () =
   assert.throws(() => pixAiWebDimensions("auto", "1k"), /PixAI 网页.*auto/);
 });
 
+test("rejects non-finite aspect ratio dimensions before creating a task", () => {
+  const hugeAspectRatio = `${"9".repeat(400)}:${"9".repeat(400)}`;
+
+  assert.throws(() => pixAiWebDimensions(hugeAspectRatio, "1k"), /有限|尺寸/);
+});
+
+test("rejects aspect ratios that produce a sub-8-pixel dimension", () => {
+  assert.throws(() => pixAiWebDimensions("1:1000000", "1k"), /尺寸/);
+});
+
 test("uses web credentials and model ID when creating a GraphQL task", async () => {
   const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
   const originalLocalStorage = Object.getOwnPropertyDescriptor(globalThis, "localStorage");

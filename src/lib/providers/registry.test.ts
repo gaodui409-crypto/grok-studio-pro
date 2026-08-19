@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createImageProviderRegistry } from "./registry.ts";
 import type { ImageProviderAdapter } from "./types.ts";
-import type { ProviderId } from "../settings.ts";
+import { PROVIDERS, type ProviderId } from "../settings.ts";
 import { imageProviderRegistry } from "./index.ts";
 
 function stubAdapter(id: ProviderId, label: string, supportsEditing = false): ImageProviderAdapter {
@@ -61,6 +61,10 @@ test("rejects duplicate provider registrations", () => {
 });
 
 test("registers every production image provider", () => {
+  for (const provider of PROVIDERS) {
+    assert.equal(imageProviderRegistry.get(provider.id).id, provider.id);
+  }
+
   assert.equal(imageProviderRegistry.get("aihorde" as ProviderId).label, "AI Horde");
   assert.equal(imageProviderRegistry.get("pollinations" as ProviderId).label, "Pollinations");
   assert.equal(imageProviderRegistry.get("pixai" as ProviderId).label, "PixAI 官方 API");

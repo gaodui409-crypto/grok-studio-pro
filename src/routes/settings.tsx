@@ -347,10 +347,9 @@ function SettingsPage() {
         {draft.provider === "pixai-web" && (
           <>
             <div className="space-y-2">
-              <Label>PixAI 网页 Token</Label>
+              <Label>PixAI 网页 Token（生成前必填）</Label>
               <div className="relative">
                 <Input
-                  required
                   type={showKey ? "text" : "password"}
                   value={draft.pixaiWebToken}
                   onChange={(e) => setDraft({ ...draft, pixaiWebToken: e.target.value })}
@@ -373,9 +372,8 @@ function SettingsPage() {
               </p>
             </div>
             <div className="space-y-2">
-              <Label>PixAI 网页模型 ID</Label>
+              <Label>PixAI 网页模型 ID（生成前必填）</Label>
               <Input
-                required
                 value={draft.pixaiWebModelId}
                 onChange={(e) => setDraft({ ...draft, pixaiWebModelId: e.target.value })}
                 placeholder="当前网页 GraphQL 使用的 modelId"
@@ -390,7 +388,8 @@ function SettingsPage() {
               <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
               <p className="text-foreground/90">
                 此渠道仅支持文生图，使用可能变化的旧 GraphQL 协议。账号额度由 PixAI
-                控制，不保证免费；真实 Token 和浏览器 CORS 仍需在使用者环境中验收。
+                控制，不保证免费；真实 Token 和浏览器 CORS 仍需在使用者环境中验收。画面比例为 auto
+                时，发包前会拒绝，请先切换为具体比例（如 1:1、16:9 或 9:16）。
               </p>
             </div>
           </>
