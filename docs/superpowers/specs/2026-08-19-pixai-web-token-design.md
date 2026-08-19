@@ -9,7 +9,7 @@
 - 增加独立的 `pixai-web` 文生图 Provider，使用用户手工提供的 PixAI 网页 Bearer Token。
 - 通过 GraphQL `createGenerationTask` 创建任务，查询 `task` 状态，从 `outputs` 中取得媒体 ID，再查询 `media` 取得公开图片 URL。
 - 多图请求在 Provider 内逐张串行，尊重 PixAI 账号和当前会话的并发限制。
-- 让用户自行填写模型 ID；默认值使用当前项目已有的 Tsubaki.2 ID，失效时无需改代码。
+- 让用户自行填写网页当前使用的模型 ID；默认留空并设为必填，不能把官方 REST 的模型版本 ID 当作 GraphQL `modelId`。
 - 在设置页和 README 中明确：这是用户自备网页 Token 的实验性渠道，不是官方 API Key，也不是号池自动轮换。
 
 ## 非目标和安全边界
@@ -30,7 +30,7 @@
 6. 完成后从 `outputs.mediaId` 或 `outputs.batch[].mediaId` 提取媒体 ID，逐个调用 `media(id: String!) { fileUrl urls { variant url } }`，优先 `PUBLIC` URL，再回退 `fileUrl` 或任意 URL。
 7. 将 URL 转换为统一的 `GeneratedImage[]`。
 
-当前无法从本机连通 `api.pixai.art:443`，因此上述协议仅以公开代码和既有网页调用样例为依据，必须在用户自己的 Token 环境中验收；协议变化时 Provider 应给出可读错误，而不是静默返回空图。
+当前无法从本机连通 `api.pixai.art:443`，因此上述协议仅以 2024–2025 年公开代码和既有网页调用样例为依据；2026 年可见的社区客户端已经转向官方 REST API。GraphQL 通道必须在用户自己的 Token 环境中验收，且只能标记为实验性；协议变化时 Provider 应给出可读错误，而不是静默返回空图。
 
 ## 架构
 
@@ -41,4 +41,3 @@
 - `README.md`：说明官方 API Key 与网页 Token 的区别、获取方式、免费额度不保证、CORS 和验收边界。
 
 客户端使用依赖注入的 fetch/sleep/now，测试覆盖请求体、Bearer、GraphQL errors、状态转换、媒体 ID、串行 n、超时、取消和空凭证。
-

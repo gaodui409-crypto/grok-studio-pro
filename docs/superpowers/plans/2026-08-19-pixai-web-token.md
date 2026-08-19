@@ -124,7 +124,7 @@ Run `git add src/lib/pixai-web-client.ts src/lib/pixai-web-client.test.ts` and c
 
 - [ ] **Step 1: Write failing adapter and registry tests**
 
-Add the `pixai-web` Provider ID and tests asserting it is listed, has `{ t2i: true, i2i: false, video: false }`, has blank `pixaiWebToken`, defaults `pixaiWebModelId` to `1983308862240288769`, and reports `PixAI 网页 Token` as its setup blocker. Add a registry assertion for label `PixAI 网页 Token（实验性）`.
+Add the `pixai-web` Provider ID and tests asserting it is listed, has `{ t2i: true, i2i: false, video: false }`, has blank `pixaiWebToken` and blank `pixaiWebModelId`, and reports `PixAI 网页 Token` first and `PixAI 网页模型 ID` after a Token is present. Add a registry assertion for label `PixAI 网页 Token（实验性）`.
 
 In `pixai-web.test.ts`, test `pixAiWebDimensions("16:9", "1k")` returns 1024x576 and `pixAiWebDimensions("9:16", "2k")` returns 864x1536, and stub the client boundary through the existing injected fetch pattern so the adapter maps settings into `runPixAiWebGeneration` without using the official API key.
 
@@ -135,13 +135,13 @@ Expected: FAIL because the new Provider ID, settings fields, adapter, and regist
 
 - [ ] **Step 3: Implement settings and adapter**
 
-Add `pixai-web` to the Provider ID union and catalog. Add `pixaiWebToken` and `pixaiWebModelId` to `Settings` and `defaultSettings`. Make `providerSetupIssue` require a non-blank web token. Map the shared aspect/resolution to dimensions with longest side 1024 for `1k` and 1536 for `2k`, rounded to 64-pixel multiples; reject `auto` with a clear message. The adapter reads settings and calls `runPixAiWebGeneration` with the prompt, model ID, dimensions, n, and signal.
+Add `pixai-web` to the Provider ID union and catalog. Add blank `pixaiWebToken` and blank `pixaiWebModelId` fields to `Settings` and `defaultSettings`. Make `providerSetupIssue` require both a non-blank web token and a non-blank web model ID. Map the shared aspect/resolution to dimensions with longest side 1024 for `1k` and 1536 for `2k`, rounded to 64-pixel multiples; reject `auto` with a clear message. The adapter reads settings and calls `runPixAiWebGeneration` with the prompt, model ID, dimensions, n, and signal.
 
 Register `pixAiWebImageProvider` after the official PixAI provider and keep `pixai-pool` blocked. Do not reuse `pixaiApiKey` or silently fall back between the two PixAI channels.
 
 - [ ] **Step 4: Add the settings UI**
 
-When `draft.provider === "pixai-web"`, render a password input for `pixaiWebToken` and a text input for `pixaiWebModelId`, with a model preset button for Tsubaki.2. Explain that the token must be copied manually from the user's own PixAI web session, is stored only in browser localStorage, can expire, and is not an official API Key. Do not provide automation to read browser storage or log in.
+When `draft.provider === "pixai-web"`, render a password input for `pixaiWebToken` and a required text input for `pixaiWebModelId`. Do not reuse the official Tsubaki.2 model-version preset: official REST `modelVersionId` and web GraphQL `modelId` are different identifiers. Explain that both values must be copied manually from the user's own PixAI web session, the token is stored only in browser localStorage, can expire, and is not an official API Key. Do not provide automation to read browser storage or log in.
 
 - [ ] **Step 5: Update README**
 
@@ -172,4 +172,3 @@ Review for protocol correctness, token safety, CORS disclosure, provider separat
 - [ ] **Step 3: Push the feature branch**
 
 Run `git push` after verification. Report the branch URL and explicitly state that real PixAI web generation and CORS remain unverified without a user token.
-
