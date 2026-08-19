@@ -13,6 +13,7 @@
 ### Task 1: Clarify Official PixAI Key Status
 
 **Files:**
+
 - Modify: `src/lib/settings.ts`
 - Modify: `src/lib/settings.test.ts`
 - Modify: `src/routes/settings.tsx`
@@ -44,6 +45,7 @@ Run `git add src/lib/settings.ts src/lib/settings.test.ts src/routes/settings.ts
 ### Task 2: Implement the GraphQL Client with TDD
 
 **Files:**
+
 - Create: `src/lib/pixai-web-client.ts`
 - Create: `src/lib/pixai-web-client.test.ts`
 
@@ -58,12 +60,20 @@ test("creates a GraphQL task with bearer authentication", async () => {
   const requests: { url: string; init?: RequestInit }[] = [];
   const responses = [
     jsonResponse({ data: { createGenerationTask: { id: "web-task" } } }),
-    jsonResponse({ data: { task: { id: "web-task", status: "completed", outputs: { mediaId: "media-1" } } } }),
+    jsonResponse({
+      data: { task: { id: "web-task", status: "completed", outputs: { mediaId: "media-1" } } },
+    }),
     jsonResponse({ data: { media: { fileUrl: "https://cdn.example/fox.png", urls: [] } } }),
   ];
   const result = await runPixAiWebGeneration(
     { token: "web-token", prompt: "fox", modelId: "model-1", width: 1024, height: 1024 },
-    { fetch: async (input, init) => { requests.push({ url: String(input), init }); return responses.shift()!; }, sleep: async () => {} },
+    {
+      fetch: async (input, init) => {
+        requests.push({ url: String(input), init });
+        return responses.shift()!;
+      },
+      sleep: async () => {},
+    },
   );
   assert.deepEqual(result, [{ url: "https://cdn.example/fox.png", mime_type: "image/png" }]);
   assert.equal(requests[0].url, PIXAI_WEB_GRAPHQL_URL);
@@ -87,13 +97,27 @@ Use `POST` for all operations with JSON `{ query, variables }`. Parse both HTTP 
 
 ```graphql
 mutation CreateGenerationTask($parameters: JSONObject!) {
-  createGenerationTask(parameters: $parameters) { id status outputs }
+  createGenerationTask(parameters: $parameters) {
+    id
+    status
+    outputs
+  }
 }
 query GetTask($id: ID!) {
-  task(id: $id) { id status outputs }
+  task(id: $id) {
+    id
+    status
+    outputs
+  }
 }
 query GetMedia($id: String!) {
-  media(id: $id) { fileUrl urls { variant url } }
+  media(id: $id) {
+    fileUrl
+    urls {
+      variant
+      url
+    }
+  }
 }
 ```
 
@@ -113,6 +137,7 @@ Run `git add src/lib/pixai-web-client.ts src/lib/pixai-web-client.test.ts` and c
 ### Task 3: Register Provider, Settings, and Documentation
 
 **Files:**
+
 - Create: `src/lib/providers/pixai-web.ts`
 - Create: `src/lib/providers/pixai-web.test.ts`
 - Modify: `src/lib/settings.ts`
@@ -159,6 +184,7 @@ Run `git add src/lib/providers/pixai-web.ts src/lib/providers/pixai-web.test.ts 
 ### Task 4: Final Review and Delivery
 
 **Files:**
+
 - No new production files; review the files above and preserve `1.3 GSP 总控笔记.md`.
 
 - [ ] **Step 1: Inspect the final diff and status**
