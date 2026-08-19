@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { defaultSettings, providerSetupIssue, PROVIDERS, PROVIDER_FEATURES } from "./settings.ts";
+import {
+  defaultSettings,
+  loadSettings,
+  providerSetupIssue,
+  PROVIDERS,
+  PROVIDER_FEATURES,
+} from "./settings.ts";
 
 test("catalogs every configured image provider", () => {
   assert.deepEqual(
@@ -36,6 +42,38 @@ test("defines persisted defaults for the new provider credentials", () => {
   assert.equal(defaultSettings.pixaiWebToken, "");
   assert.equal(defaultSettings.pixaiWebModelId, "");
   assert.equal(defaultSettings.pixaiPoolBaseUrl, "https://imgapi.qianyimwl.top");
+});
+
+test("fills PixAI web defaults when loading legacy saved settings", () => {
+  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const originalLocalStorage = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
+
+  Object.defineProperty(globalThis, "window", { configurable: true, value: {} });
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: {
+      getItem() {
+        return JSON.stringify({ provider: "hf", hfToken: "legacy-token", concurrency: 2 });
+      },
+    },
+  });
+
+  try {
+    const settings = loadSettings();
+    assert.equal(settings.provider, "hf");
+    assert.equal(settings.hfToken, "legacy-token");
+    assert.equal(settings.concurrency, 2);
+    assert.equal(settings.pixaiWebToken, "");
+    assert.equal(settings.pixaiWebModelId, "");
+  } finally {
+    if (originalWindow) Object.defineProperty(globalThis, "window", originalWindow);
+    else delete (globalThis as { window?: unknown }).window;
+    if (originalLocalStorage) {
+      Object.defineProperty(globalThis, "localStorage", originalLocalStorage);
+    } else {
+      delete (globalThis as { localStorage?: unknown }).localStorage;
+    }
+  }
 });
 
 test("declares only working new transports as text-to-image capable", () => {
