@@ -16,16 +16,17 @@ Grok Studio Pro 是一个运行在浏览器里的 AI 图片、视频工作台。
 
 ## 渠道支持
 
-| 渠道         | 文生图 | 图生图 | 视频 | 配置和限制                                                   |
-| ------------ | :----: | :----: | :--: | ------------------------------------------------------------ |
-| xAI / NewAPI |   是   |   是   |  是  | 需要 API Key；Base URL 可填 xAI 官方地址或兼容的 NewAPI 中转 |
-| ModelScope   |   是   |   否   |  否  | 需要 ModelScope Token，固定使用 `Tongyi-MAI/Z-Image-Turbo`   |
-| Hugging Face |   是   |   否   |  否  | 需要 HF Token，模型可自定义                                  |
-| AI Horde     |   是   |   否   |  否  | 可留空 Key 使用匿名队列；匿名任务优先级较低                  |
-| Pollinations |   是   |   否   |  否  | 需要 API Key / Pollen 额度，默认模型为 `flux`                |
-| PixAI 号池   | 待接入 |   否   |  否  | 已登记 `imgapi.qianyimwl.top`，但缺少真实的网页请求协议      |
+| 渠道           | 文生图 | 图生图 | 视频 | 配置和限制                                                   |
+| -------------- | :----: | :----: | :--: | ------------------------------------------------------------ |
+| xAI / NewAPI   |   是   |   是   |  是  | 需要 API Key；Base URL 可填 xAI 官方地址或兼容的 NewAPI 中转 |
+| ModelScope     |   是   |   否   |  否  | 需要 ModelScope Token，固定使用 `Tongyi-MAI/Z-Image-Turbo`   |
+| Hugging Face   |   是   |   否   |  否  | 需要 HF Token，模型可自定义                                  |
+| AI Horde       |   是   |   否   |  否  | 可留空 Key 使用匿名队列；匿名任务优先级较低                  |
+| Pollinations   |   是   |   否   |  否  | 需要 API Key / Pollen 额度，默认模型为 `flux`                |
+| PixAI 官方 API |   是   |   否   |  否  | 需要 PixAI v2 API Key 和模型版本 ID；多图任务串行提交        |
+| PixAI 号池     | 待接入 |   否   |  否  | 已登记 `imgapi.qianyimwl.top`，但缺少真实的网页请求协议      |
 
-PixAI 号池目前只完成了渠道注册和设置界面。生成时会明确提示缺少协议，不会对网站猜测发包。要完成接入，需要从浏览器 DevTools Network 导出一次成功生成的 HAR，或提供以下信息：
+PixAI 官方 API 和 PixAI 号池是两个独立渠道。官方协议使用 `POST api.pixai.art/v2/image/create` 创建任务、`GET api.pixai.art/v1/task/{id}` 查询状态，并通过 API Key 鉴权；接入已经完成协议级与 Mock 测试。由于仓库没有真实 Key，首次实图生成仍需使用者验收。号池目前只完成了渠道注册和设置界面，生成时会明确提示缺少协议，不会对网站猜测发包。要完成号池接入，需要从浏览器 DevTools Network 导出一次成功生成的 HAR，或提供以下信息：
 
 - 提交生成任务的 URL、方法、请求头和请求体。
 - 提交后的响应内容，以及任务 ID 所在字段。
@@ -79,6 +80,7 @@ bun run dev
 - Hugging Face：填写 HF Token 和模型 ID，例如 `Tongyi-MAI/Z-Image-Turbo`。
 - AI Horde：Key 可以留空，程序会使用匿名 Key `0000000000`。如果有个人 Key，填入后可获得更高的队列优先级。
 - Pollinations：填写 Pollinations API Key 和模型名。该服务按 API Key / Pollen 额度运行，不应当作无限免费渠道。
+- PixAI 官方 API：填写 PixAI v2 API Key 和模型版本 ID。默认模型为 Tsubaki.2（`1983308862240288769`），也可选择 Haruka v2（`1861558740588989558`）或 Hoshino v2（`1954632828118619567`）。该渠道只支持文生图，多张图片会逐张提交；项目的 `2k` 档会映射到 PixAI 支持的 `1.5k`。PixAI 不支持通用选项中的 `2:1`、`1:2` 和 `auto`，选择这些比例时会在发包前给出提示。
 - PixAI 号池：目前仅保存网站地址，尚不能生成图片。
 
 Key 和 Token 仅保存在当前浏览器的 `localStorage` 中。发起生成时，它们会直接发送给你选中的 Provider 或 NewAPI 中转。请勿在公共电脑上保存私人凭证。
@@ -98,7 +100,7 @@ Key 和 Token 仅保存在当前浏览器的 `localStorage` 中。发起生成�
 3. xAI / NewAPI 可在页面中选择图片模型；其他渠道使用设置页里的固定或自定义模型。
 4. 点击“生成图片”。完成后结果会自动保存到画廊。
 
-文生图是 AI Horde、Pollinations、ModelScope 和 Hugging Face 的主要使用入口。AI Horde 任务可能长时间停留在队列中，这通常不是程序故障。
+文生图是 AI Horde、Pollinations、PixAI 官方 API、ModelScope 和 Hugging Face 的主要使用入口。AI Horde 和 PixAI 任务可能在队列中等待，这通常不是程序故障。
 
 ### 4. 图生图和多图融合
 
@@ -152,7 +154,7 @@ Key 和 Token 仅保存在当前浏览器的 `localStorage` 中。发起生成�
 
 ### 页面提示“尚未配置”
 
-打开设置页，填写当前渠道的 Key 或 Token 并保存。AI Horde 允许留空 Key，PixAI 的提示则表示请求协议还没有完成。
+打开设置页，填写当前渠道的 Key 或 Token 并保存。AI Horde 允许留空 Key；只有“PixAI 号池”的提示表示网页请求协议还没有完成。
 
 ### 页面提示“当前来源不支持此功能”
 
@@ -165,6 +167,10 @@ Key 和 Token 仅保存在当前浏览器的 `localStorage` 中。发起生成�
 ### Pollinations 返回 401、402 或 429
 
 检查 API Key、Pollen 额度和请求频率。批量生成时可先将并发数设为 `1`。
+
+### PixAI 返回 401、模型错误或长时间等待
+
+检查 PixAI v2 API Key、模型版本 ID 和账号额度。多图请求已在渠道内部串行；任务等待超过十分钟会停止轮询并提示超时。当前接入没有使用网页 LocalStorage Token，网页账号 Token 不能替代 v2 API Key。
 
 ### NewAPI 返回 404 或模型不存在
 
@@ -195,6 +201,7 @@ src/
   lib/
     providers/             # 各图片渠道的适配器和注册表
     ai-horde-client.ts      # AI Horde 提交、轮询和结果处理
+    pixai-client.ts         # PixAI v2 提交、轮询和结果处理
     pollinations.ts         # Pollinations 请求和图片归一化
     settings.ts             # Provider 目录、能力和本地设置
     xai.ts                  # 路由兼容门面，也包含视频和 Chat 调用

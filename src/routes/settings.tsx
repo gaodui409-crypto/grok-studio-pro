@@ -28,7 +28,7 @@ import {
   VideoModelSelect,
 } from "@/components/param-selects";
 import { useSettings } from "@/hooks/use-settings";
-import { PROVIDERS, HF_MODEL_PRESETS, type ProviderId } from "@/lib/settings";
+import { PROVIDERS, HF_MODEL_PRESETS, PIXAI_MODEL_PRESETS, type ProviderId } from "@/lib/settings";
 import {
   Select,
   SelectContent,
@@ -286,6 +286,59 @@ function SettingsPage() {
                 placeholder="flux"
                 className="font-mono"
               />
+            </div>
+          </>
+        )}
+
+        {draft.provider === "pixai" && (
+          <>
+            <div className="space-y-2">
+              <Label>PixAI API Key</Label>
+              <div className="relative">
+                <Input
+                  type={showKey ? "text" : "password"}
+                  value={draft.pixaiApiKey}
+                  onChange={(e) => setDraft({ ...draft, pixaiApiKey: e.target.value })}
+                  placeholder="PixAI v2 API Key"
+                  className="pr-10 font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowKey((value) => !value)}
+                  aria-label={showKey ? "隐藏 API Key" : "显示 API Key"}
+                  className="absolute right-0.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded text-muted-foreground hover:text-foreground"
+                >
+                  {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                直接发送到 api.pixai.art，不使用网页登录 Token。Key 只保存在当前浏览器。
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label>PixAI 模型版本 ID</Label>
+              <Input
+                value={draft.pixaiModelVersionId}
+                onChange={(e) => setDraft({ ...draft, pixaiModelVersionId: e.target.value })}
+                placeholder="1983308862240288769"
+                className="font-mono"
+              />
+              <div className="flex flex-wrap gap-1.5">
+                {PIXAI_MODEL_PRESETS.map((model) => (
+                  <button
+                    key={model.id}
+                    type="button"
+                    onClick={() => setDraft({ ...draft, pixaiModelVersionId: model.id })}
+                    className="rounded-full border border-border/60 bg-surface px-2.5 py-1 text-xs hover:border-primary/60"
+                  >
+                    {model.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                默认 Tsubaki.2。通用 2k 档会按 PixAI 协议转换为 1.5k；多张图片逐张提交。 PixAI
+                不支持 2:1、1:2 和 auto 比例。
+              </p>
             </div>
           </>
         )}

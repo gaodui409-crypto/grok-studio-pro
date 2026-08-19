@@ -63,5 +63,6 @@ test("rejects duplicate provider registrations", () => {
 test("registers every production image provider", () => {
   assert.equal(imageProviderRegistry.get("aihorde" as ProviderId).label, "AI Horde");
   assert.equal(imageProviderRegistry.get("pollinations" as ProviderId).label, "Pollinations");
+  assert.equal(imageProviderRegistry.get("pixai" as ProviderId).label, "PixAI 官方 API");
   assert.equal(imageProviderRegistry.get("pixai-pool" as ProviderId).label, "PixAI 号池");
 });

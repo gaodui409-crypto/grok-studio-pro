@@ -7,7 +7,14 @@ export const VIDEO_MODELS = [
   { id: "grok-imagine-video", label: "Grok Imagine · Video (480p $0.05/s · 720p $0.07/s)" },
 ] as const;
 
-export type ProviderId = "xai" | "modelscope" | "hf" | "aihorde" | "pollinations" | "pixai-pool";
+export type ProviderId =
+  | "xai"
+  | "modelscope"
+  | "hf"
+  | "aihorde"
+  | "pollinations"
+  | "pixai"
+  | "pixai-pool";
 
 export const PROVIDERS: { id: ProviderId; label: string; desc: string }[] = [
   {
@@ -32,6 +39,11 @@ export const PROVIDERS: { id: ProviderId; label: string; desc: string }[] = [
     desc: "使用 API Key / Pollen 额度，直接返回图片，仅文生图。",
   },
   {
+    id: "pixai",
+    label: "PixAI 官方 API",
+    desc: "使用 PixAI v2 API Key 和模型版本 ID，异步生成图片，仅文生图。",
+  },
+  {
     id: "pixai-pool",
     label: "PixAI 号池（待协议）",
     desc: "已登记 imgapi.qianyimwl.top；需提供真实 HAR / Network 请求后才能启用生成。",
@@ -47,8 +59,17 @@ export const PROVIDER_FEATURES: Record<ProviderId, { t2i: boolean; i2i: boolean;
     hf: { t2i: true, i2i: false, video: false },
     aihorde: { t2i: true, i2i: false, video: false },
     pollinations: { t2i: true, i2i: false, video: false },
+    pixai: { t2i: true, i2i: false, video: false },
     "pixai-pool": { t2i: false, i2i: false, video: false },
   };
+
+export const PIXAI_MODEL_PRESETS = [
+  { id: "1983308862240288769", label: "Tsubaki.2" },
+  { id: "1861558740588989558", label: "Haruka v2" },
+  { id: "1954632828118619567", label: "Hoshino v2" },
+] as const;
+
+export const PIXAI_DEFAULT_MODEL_VERSION_ID = PIXAI_MODEL_PRESETS[0].id;
 
 export type Settings = {
   // Provider selection
@@ -68,6 +89,9 @@ export type Settings = {
   // Pollinations
   pollinationsApiKey: string;
   pollinationsModel: string;
+  // PixAI official API
+  pixaiApiKey: string;
+  pixaiModelVersionId: string;
   // PixAI account pool
   pixaiPoolBaseUrl: string;
   // Shared defaults
@@ -90,6 +114,8 @@ export const defaultSettings: Settings = {
   aiHordeApiKey: "",
   pollinationsApiKey: "",
   pollinationsModel: "flux",
+  pixaiApiKey: "",
+  pixaiModelVersionId: PIXAI_DEFAULT_MODEL_VERSION_ID,
   pixaiPoolBaseUrl: "https://imgapi.qianyimwl.top",
   defaultResolution: "1k",
   defaultAspectRatio: "1:1",
@@ -108,6 +134,9 @@ export function providerSetupIssue(settings: Settings): string | null {
   }
   if (settings.provider === "pollinations") {
     return settings.pollinationsApiKey.trim() ? null : "Pollinations API Key";
+  }
+  if (settings.provider === "pixai") {
+    return settings.pixaiApiKey.trim() ? null : "PixAI API Key";
   }
   if (settings.provider === "pixai-pool") {
     return "PixAI 号池请求协议（HAR / Network）";
