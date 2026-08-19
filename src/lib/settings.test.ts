@@ -5,7 +5,7 @@ import { defaultSettings, providerSetupIssue, PROVIDERS, PROVIDER_FEATURES } fro
 test("catalogs every configured image provider", () => {
   assert.deepEqual(
     PROVIDERS.map((provider) => provider.id),
-    ["xai", "modelscope", "hf", "aihorde", "pollinations", "pixai", "pixai-pool"],
+    ["xai", "modelscope", "hf", "aihorde", "pollinations", "pixai", "pixai-web", "pixai-pool"],
   );
 });
 
@@ -17,12 +17,24 @@ test("describes PixAI official API key availability", () => {
   assert.match(pixai.desc, /免费额度未知/);
 });
 
+test("describes PixAI web token as an experimental text-to-image provider", () => {
+  const pixaiWeb = PROVIDERS.find((provider) => provider.id === "pixai-web");
+
+  assert.ok(pixaiWeb);
+  assert.equal(pixaiWeb.label, "PixAI 网页 Token（实验性）");
+  assert.match(pixaiWeb.desc, /自备网页登录 Token/);
+  assert.match(pixaiWeb.desc, /协议可能变化/);
+  assert.match(pixaiWeb.desc, /仅文生图/);
+});
+
 test("defines persisted defaults for the new provider credentials", () => {
   assert.equal(defaultSettings.aiHordeApiKey, "");
   assert.equal(defaultSettings.pollinationsApiKey, "");
   assert.equal(defaultSettings.pollinationsModel, "flux");
   assert.equal(defaultSettings.pixaiApiKey, "");
   assert.equal(defaultSettings.pixaiModelVersionId, "1983308862240288769");
+  assert.equal(defaultSettings.pixaiWebToken, "");
+  assert.equal(defaultSettings.pixaiWebModelId, "");
   assert.equal(defaultSettings.pixaiPoolBaseUrl, "https://imgapi.qianyimwl.top");
 });
 
@@ -30,6 +42,11 @@ test("declares only working new transports as text-to-image capable", () => {
   assert.deepEqual(PROVIDER_FEATURES.aihorde, { t2i: true, i2i: false, video: false });
   assert.deepEqual(PROVIDER_FEATURES.pollinations, { t2i: true, i2i: false, video: false });
   assert.deepEqual(PROVIDER_FEATURES.pixai, { t2i: true, i2i: false, video: false });
+  assert.deepEqual(PROVIDER_FEATURES["pixai-web"], {
+    t2i: true,
+    i2i: false,
+    video: false,
+  });
   assert.deepEqual(PROVIDER_FEATURES["pixai-pool"], {
     t2i: false,
     i2i: false,
@@ -62,6 +79,45 @@ test("reports setup blockers without requiring an AI Horde key", () => {
   );
   assert.equal(
     providerSetupIssue({ ...defaultSettings, provider: "pixai", pixaiApiKey: "pixai-key" }),
+    null,
+  );
+  assert.equal(
+    providerSetupIssue({ ...defaultSettings, provider: "pixai-web" }),
+    "PixAI 网页 Token",
+  );
+  assert.equal(
+    providerSetupIssue({
+      ...defaultSettings,
+      provider: "pixai-web",
+      pixaiWebToken: "   ",
+      pixaiWebModelId: "web-model",
+    }),
+    "PixAI 网页 Token",
+  );
+  assert.equal(
+    providerSetupIssue({
+      ...defaultSettings,
+      provider: "pixai-web",
+      pixaiWebToken: "web-token",
+    }),
+    "PixAI 网页模型 ID",
+  );
+  assert.equal(
+    providerSetupIssue({
+      ...defaultSettings,
+      provider: "pixai-web",
+      pixaiWebToken: "web-token",
+      pixaiWebModelId: "   ",
+    }),
+    "PixAI 网页模型 ID",
+  );
+  assert.equal(
+    providerSetupIssue({
+      ...defaultSettings,
+      provider: "pixai-web",
+      pixaiWebToken: "web-token",
+      pixaiWebModelId: "web-model",
+    }),
     null,
   );
 });

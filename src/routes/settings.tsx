@@ -344,6 +344,58 @@ function SettingsPage() {
           </>
         )}
 
+        {draft.provider === "pixai-web" && (
+          <>
+            <div className="space-y-2">
+              <Label>PixAI 网页 Token</Label>
+              <div className="relative">
+                <Input
+                  required
+                  type={showKey ? "text" : "password"}
+                  value={draft.pixaiWebToken}
+                  onChange={(e) => setDraft({ ...draft, pixaiWebToken: e.target.value })}
+                  placeholder="api.pixai.art:token 的 value"
+                  className="pr-10 font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowKey((value) => !value)}
+                  aria-label={showKey ? "隐藏网页 Token" : "显示网页 Token"}
+                  className="absolute right-0.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded text-muted-foreground hover:text-foreground"
+                >
+                  {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                从本人已登录的 PixAI 网页会话中，手工复制 LocalStorage `api.pixai.art:token` 的
+                value。它是敏感登录凭证，可能过期，仅保存在当前浏览器
+                localStorage；本项目不会自动读取或登录。
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label>PixAI 网页模型 ID</Label>
+              <Input
+                required
+                value={draft.pixaiWebModelId}
+                onChange={(e) => setDraft({ ...draft, pixaiWebModelId: e.target.value })}
+                placeholder="当前网页 GraphQL 使用的 modelId"
+                className="font-mono"
+              />
+              <p className="text-xs text-muted-foreground">
+                必须填写网页请求中的 GraphQL modelId。它与官方 REST API 的 modelVersionId
+                不同，因此这里不提供官方模型预设。
+              </p>
+            </div>
+            <div className="flex gap-3 rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+              <p className="text-foreground/90">
+                此渠道仅支持文生图，使用可能变化的旧 GraphQL 协议。账号额度由 PixAI
+                控制，不保证免费；真实 Token 和浏览器 CORS 仍需在使用者环境中验收。
+              </p>
+            </div>
+          </>
+        )}
+
         {draft.provider === "pixai-pool" && (
           <>
             <div className="space-y-2">

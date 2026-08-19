@@ -16,17 +16,22 @@ Grok Studio Pro 是一个运行在浏览器里的 AI 图片、视频工作台。
 
 ## 渠道支持
 
-| 渠道           | 文生图 | 图生图 | 视频 | 配置和限制                                                   |
-| -------------- | :----: | :----: | :--: | ------------------------------------------------------------ |
-| xAI / NewAPI   |   是   |   是   |  是  | 需要 API Key；Base URL 可填 xAI 官方地址或兼容的 NewAPI 中转 |
-| ModelScope     |   是   |   否   |  否  | 需要 ModelScope Token，固定使用 `Tongyi-MAI/Z-Image-Turbo`   |
-| Hugging Face   |   是   |   否   |  否  | 需要 HF Token，模型可自定义                                  |
-| AI Horde       |   是   |   否   |  否  | 可留空 Key 使用匿名队列；匿名任务优先级较低                  |
-| Pollinations   |   是   |   否   |  否  | 需要 API Key / Pollen 额度，默认模型为 `flux`                |
-| PixAI 官方 API |   是   |   否   |  否  | 普通用户需申请 API Key 并等待审核，会员可直接获取；公开免费额度未知 |
-| PixAI 号池     | 待接入 |   否   |  否  | 已登记 `imgapi.qianyimwl.top`，但缺少真实的网页请求协议      |
+| 渠道                       | 文生图 | 图生图 | 视频 | 配置和限制                                                          |
+| -------------------------- | :----: | :----: | :--: | ------------------------------------------------------------------- |
+| xAI / NewAPI               |   是   |   是   |  是  | 需要 API Key；Base URL 可填 xAI 官方地址或兼容的 NewAPI 中转        |
+| ModelScope                 |   是   |   否   |  否  | 需要 ModelScope Token，固定使用 `Tongyi-MAI/Z-Image-Turbo`          |
+| Hugging Face               |   是   |   否   |  否  | 需要 HF Token，模型可自定义                                         |
+| AI Horde                   |   是   |   否   |  否  | 可留空 Key 使用匿名队列；匿名任务优先级较低                         |
+| Pollinations               |   是   |   否   |  否  | 需要 API Key / Pollen 额度，默认模型为 `flux`                       |
+| PixAI 官方 API             |   是   |   否   |  否  | 普通用户需申请 API Key 并等待审核，会员可直接获取；公开免费额度未知 |
+| PixAI 网页 Token（实验性） |   是   |   否   |  否  | 自备网页登录 Token 和 GraphQL `modelId`；协议、额度和 CORS 不保证   |
+| PixAI 号池                 | 待接入 |   否   |  否  | 已登记 `imgapi.qianyimwl.top`，但缺少真实的网页请求协议             |
 
-PixAI 官方 API 和 PixAI 号池是两个独立渠道。官方协议使用 `POST api.pixai.art/v2/image/create` 创建任务、`GET api.pixai.art/v1/task/{id}` 查询状态，并通过 API Key 鉴权；接入已经完成协议级与 Mock 测试。由于仓库没有真实 Key，首次实图生成仍需使用者验收。号池目前只完成了渠道注册和设置界面，生成时会明确提示缺少协议，不会对网站猜测发包。要完成号池接入，需要从浏览器 DevTools Network 导出一次成功生成的 HAR，或提供以下信息：
+PixAI 官方 API、PixAI 网页 Token 和 PixAI 号池是三个独立渠道。官方协议使用 `POST api.pixai.art/v2/image/create` 创建任务、`GET api.pixai.art/v1/task/{id}` 查询状态，并通过 API Key 鉴权；接入已经完成协议级与 Mock 测试。由于仓库没有真实 Key，首次实图生成仍需使用者验收。
+
+网页 Token 渠道使用用户自己的网页登录 Bearer Token 调用 `api.pixai.art/graphql`。它基于公开的旧 GraphQL schema，仅标记为实验性：PixAI 可能调整 schema，浏览器也可能受 CORS 限制。当前只有 Mock 协议测试，没有用真实 Token 验收。多图请求会在渠道内部逐张串行提交；账号额度和免费额度完全由 PixAI 控制，本项目不保证免费。
+
+号池目前只完成了渠道注册和设置界面，生成时会明确提示缺少协议，不会对网站猜测发包。要完成号池接入，需要从浏览器 DevTools Network 导出一次成功生成的 HAR，或提供以下信息：
 
 - 提交生成任务的 URL、方法、请求头和请求体。
 - 提交后的响应内容，以及任务 ID 所在字段。
@@ -81,6 +86,7 @@ bun run dev
 - AI Horde：Key 可以留空，程序会使用匿名 Key `0000000000`。如果有个人 Key，填入后可获得更高的队列优先级。
 - Pollinations：填写 Pollinations API Key 和模型名。该服务按 API Key / Pollen 额度运行，不应当作无限免费渠道。
 - PixAI 官方 API：普通用户需申请 PixAI v2 API Key 并等待审核，会员可直接获取；公开免费额度未知。填写 API Key 和模型版本 ID。默认模型为 Tsubaki.2（`1983308862240288769`），也可选择 Haruka v2（`1861558740588989558`）或 Hoshino v2（`1954632828118619567`）。该渠道只支持文生图，多张图片会逐张提交；项目的 `2k` 档会映射到 PixAI 支持的 `1.5k`。PixAI 不支持通用选项中的 `2:1`、`1:2` 和 `auto`，选择这些比例时会在发包前给出提示。
+- PixAI 网页 Token（实验性）：在本人已登录的 PixAI 网页会话中，从浏览器 DevTools 的 LocalStorage 手工复制 `api.pixai.art:token` 的 value，并填写当前网页 GraphQL 请求使用的 `modelId`。网页登录 Token 是敏感登录凭证，只保存在当前浏览器 `localStorage`，会过期；项目不自动读取网页存储，也不实现登录。官方 REST 的 `modelVersionId` 与网页 GraphQL 的 `modelId` 不同，不能混用。该渠道只支持文生图，单次多图请求会逐张串行；旧 GraphQL schema、真实 Token 和 CORS 尚未验收，PixAI 控制账号额度且不保证免费。
 - PixAI 号池：目前仅保存网站地址，尚不能生成图片。
 
 Key 和 Token 仅保存在当前浏览器的 `localStorage` 中。发起生成时，它们会直接发送给你选中的 Provider 或 NewAPI 中转。请勿在公共电脑上保存私人凭证。
@@ -100,7 +106,7 @@ Key 和 Token 仅保存在当前浏览器的 `localStorage` 中。发起生成�
 3. xAI / NewAPI 可在页面中选择图片模型；其他渠道使用设置页里的固定或自定义模型。
 4. 点击“生成图片”。完成后结果会自动保存到画廊。
 
-文生图是 AI Horde、Pollinations、PixAI 官方 API、ModelScope 和 Hugging Face 的主要使用入口。AI Horde 和 PixAI 任务可能在队列中等待，这通常不是程序故障。
+文生图是 AI Horde、Pollinations、PixAI 官方 API、PixAI 网页 Token、ModelScope 和 Hugging Face 的主要使用入口。AI Horde 和 PixAI 任务可能在队列中等待，这通常不是程序故障。
 
 ### 4. 图生图和多图融合
 
@@ -172,6 +178,10 @@ Key 和 Token 仅保存在当前浏览器的 `localStorage` 中。发起生成�
 
 普通用户需申请 PixAI v2 API Key 并等待审核，会员可直接获取；公开免费额度未知。遇到错误时，检查 API Key、模型版本 ID 和账号额度。多图请求已在渠道内部串行；任务等待超过十分钟会停止轮询并提示超时。当前接入没有使用网页 LocalStorage Token，网页账号 Token 不能替代 v2 API Key。
 
+### PixAI 网页 Token 返回鉴权、模型、GraphQL 或 CORS 错误
+
+确认 Token 来自本人当前已登录会话的 LocalStorage `api.pixai.art:token` value，且尚未过期；同时确认填写的是网页 GraphQL `modelId`，不是官方 REST `modelVersionId`。该渠道依赖可能变化的旧 GraphQL schema，且尚未用真实 Token 验收。浏览器直接请求也可能被 PixAI 的 CORS 策略阻止。账号额度和免费额度由 PixAI 控制，程序不会绕过限制或自动切换账号。
+
 ### NewAPI 返回 404 或模型不存在
 
 确认 Base URL 没有重复拼接 `/v1`，并检查中转是否支持当前的图片或视频端点。模型名必须与中转实际提供的名称一致。
@@ -202,6 +212,7 @@ src/
     providers/             # 各图片渠道的适配器和注册表
     ai-horde-client.ts      # AI Horde 提交、轮询和结果处理
     pixai-client.ts         # PixAI v2 提交、轮询和结果处理
+    pixai-web-client.ts     # PixAI 网页 GraphQL 提交、轮询和结果处理
     pollinations.ts         # Pollinations 请求和图片归一化
     settings.ts             # Provider 目录、能力和本地设置
     xai.ts                  # 路由兼容门面，也包含视频和 Chat 调用

@@ -14,6 +14,7 @@ export type ProviderId =
   | "aihorde"
   | "pollinations"
   | "pixai"
+  | "pixai-web"
   | "pixai-pool";
 
 export const PROVIDERS: { id: ProviderId; label: string; desc: string }[] = [
@@ -44,6 +45,11 @@ export const PROVIDERS: { id: ProviderId; label: string; desc: string }[] = [
     desc: "使用 PixAI v2 API Key 和模型版本 ID；普通用户需申请并等待审核，会员可直接获取，公开免费额度未知。仅文生图。",
   },
   {
+    id: "pixai-web",
+    label: "PixAI 网页 Token（实验性）",
+    desc: "自备网页登录 Token 和网页模型 ID；协议可能变化，仅文生图。",
+  },
+  {
     id: "pixai-pool",
     label: "PixAI 号池（待协议）",
     desc: "已登记 imgapi.qianyimwl.top；需提供真实 HAR / Network 请求后才能启用生成。",
@@ -60,6 +66,7 @@ export const PROVIDER_FEATURES: Record<ProviderId, { t2i: boolean; i2i: boolean;
     aihorde: { t2i: true, i2i: false, video: false },
     pollinations: { t2i: true, i2i: false, video: false },
     pixai: { t2i: true, i2i: false, video: false },
+    "pixai-web": { t2i: true, i2i: false, video: false },
     "pixai-pool": { t2i: false, i2i: false, video: false },
   };
 
@@ -92,6 +99,9 @@ export type Settings = {
   // PixAI official API
   pixaiApiKey: string;
   pixaiModelVersionId: string;
+  // PixAI web GraphQL
+  pixaiWebToken: string;
+  pixaiWebModelId: string;
   // PixAI account pool
   pixaiPoolBaseUrl: string;
   // Shared defaults
@@ -116,6 +126,8 @@ export const defaultSettings: Settings = {
   pollinationsModel: "flux",
   pixaiApiKey: "",
   pixaiModelVersionId: PIXAI_DEFAULT_MODEL_VERSION_ID,
+  pixaiWebToken: "",
+  pixaiWebModelId: "",
   pixaiPoolBaseUrl: "https://imgapi.qianyimwl.top",
   defaultResolution: "1k",
   defaultAspectRatio: "1:1",
@@ -137,6 +149,10 @@ export function providerSetupIssue(settings: Settings): string | null {
   }
   if (settings.provider === "pixai") {
     return settings.pixaiApiKey.trim() ? null : "PixAI API Key";
+  }
+  if (settings.provider === "pixai-web") {
+    if (!settings.pixaiWebToken.trim()) return "PixAI 网页 Token";
+    return settings.pixaiWebModelId.trim() ? null : "PixAI 网页模型 ID";
   }
   if (settings.provider === "pixai-pool") {
     return "PixAI 号池请求协议（HAR / Network）";
