@@ -41,7 +41,7 @@ export const PROVIDERS: { id: ProviderId; label: string; desc: string }[] = [
   {
     id: "pixai",
     label: "PixAI 官方 API",
-    desc: "使用 PixAI v2 API Key 和模型版本 ID，异步生成图片，仅文生图。",
+    desc: "使用 PixAI v2 API Key 和模型版本 ID；普通用户需申请并等待审核，会员可直接获取，公开免费额度未知。仅文生图。",
   },
   {
     id: "pixai-pool",

@@ -9,6 +9,14 @@ test("catalogs every configured image provider", () => {
   );
 });
 
+test("describes PixAI official API key availability", () => {
+  const pixai = PROVIDERS.find((provider) => provider.id === "pixai");
+
+  assert.ok(pixai);
+  assert.match(pixai.desc, /需申请/);
+  assert.match(pixai.desc, /免费额度未知/);
+});
+
 test("defines persisted defaults for the new provider credentials", () => {
   assert.equal(defaultSettings.aiHordeApiKey, "");
   assert.equal(defaultSettings.pollinationsApiKey, "");

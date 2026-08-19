@@ -312,7 +312,8 @@ function SettingsPage() {
                 </button>
               </div>
               <p className="text-xs text-muted-foreground">
-                直接发送到 api.pixai.art，不使用网页登录 Token。Key 只保存在当前浏览器。
+                普通用户需申请并等待审核，会员可直接获取；公开免费额度未知。请求直接发送到
+                api.pixai.art，不使用网页登录 Token。Key 只保存在当前浏览器。
               </p>
             </div>
             <div className="space-y-2">
