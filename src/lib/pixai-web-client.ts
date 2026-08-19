@@ -24,8 +24,7 @@ export type PixAiWebClientDependencies = {
 
 const CREATE_GENERATION_TASK_QUERY =
   "mutation CreateGenerationTask($parameters: JSONObject!) { createGenerationTask(parameters: $parameters) { id status outputs } }";
-const TASK_QUERY =
-  "query GetTask($id: ID!) { task(id: $id) { id status outputs } }";
+const TASK_QUERY = "query GetTask($id: ID!) { task(id: $id) { id status outputs } }";
 const MEDIA_QUERY =
   "query GetMedia($id: String!) { media(id: $id) { fileUrl urls { variant url } } }";
 
@@ -43,9 +42,7 @@ const FAILED_STATUSES = new Set(["failed", "error", "cancelled", "canceled"]);
 type JsonObject = Record<string, unknown>;
 
 function asObject(value: unknown): JsonObject | null {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as JsonObject)
-    : null;
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as JsonObject) : null;
 }
 
 function timeoutError(): Error {
@@ -143,7 +140,12 @@ async function graphQlRequest(
     body: JSON.stringify({ query, variables }),
   });
   await assertResponseOk(response, "PixAI 网页 GraphQL 请求");
-  const payload: unknown = await response.json();
+  let payload: unknown;
+  try {
+    payload = await response.json();
+  } catch {
+    throw new Error("PixAI 网页 GraphQL 响应不是有效 JSON");
+  }
   const graphQlError = graphQlErrorMessage(payload);
   if (graphQlError) throw new Error(`PixAI 网页 GraphQL 错误: ${graphQlError}`);
   const data = asObject(asObject(payload)?.data);
@@ -174,6 +176,8 @@ export async function runPixAiWebGeneration(
 ): Promise<GeneratedImage[]> {
   const token = input.token.trim();
   if (!token) throw new Error("PixAI 网页 Token 未配置");
+  const requestedCount = input.n ?? 1;
+  if (!Number.isFinite(requestedCount)) throw new Error("PixAI 网页生成数量无效");
 
   const {
     fetch: fetchImpl = fetch,
@@ -182,7 +186,7 @@ export async function runPixAiWebGeneration(
     pollIntervalMs = 3000,
     timeoutMs = 10 * 60 * 1000,
   } = dependencies;
-  const count = Math.max(1, Math.floor(input.n ?? 1));
+  const count = Math.max(1, Math.floor(requestedCount));
   const headers = {
     Authorization: `Bearer ${token}`,
     "Content-Type": "application/json",
@@ -197,10 +201,13 @@ export async function runPixAiWebGeneration(
     let deadlineExpired = false;
     const forwardAbort = () => taskController.abort(input.signal?.reason);
     input.signal?.addEventListener("abort", forwardAbort, { once: true });
-    const timeoutHandle = globalThis.setTimeout(() => {
-      deadlineExpired = true;
-      taskController.abort(timeoutError());
-    }, Math.max(0, timeoutMs));
+    const timeoutHandle = globalThis.setTimeout(
+      () => {
+        deadlineExpired = true;
+        taskController.abort(timeoutError());
+      },
+      Math.max(0, timeoutMs),
+    );
 
     const assertActive = () => {
       if (input.signal?.aborted) throw abortError(input.signal.reason);
@@ -251,14 +258,23 @@ export async function runPixAiWebGeneration(
       if (mediaIds.length === 0) throw new Error("PixAI 网页任务未返回媒体 ID");
       for (const mediaId of mediaIds) {
         assertActive();
-        const mediaData = await graphQlRequest(fetchImpl, MEDIA_QUERY, { id: mediaId }, headers, taskController.signal);
+        const mediaData = await graphQlRequest(
+          fetchImpl,
+          MEDIA_QUERY,
+          { id: mediaId },
+          headers,
+          taskController.signal,
+        );
         const url = mediaUrlFromResponse(mediaData);
         if (!url) throw new Error("PixAI 网页媒体未返回图片 URL");
         images.push({ url, mime_type: mimeTypeFromUrl(url) });
       }
     } catch (error) {
       if (input.signal?.aborted) throw abortError(input.signal.reason);
-      if (deadlineExpired || (taskController.signal.aborted && taskController.signal.reason?.name === "TimeoutError")) {
+      if (
+        deadlineExpired ||
+        (taskController.signal.aborted && taskController.signal.reason?.name === "TimeoutError")
+      ) {
         throw timeoutError();
       }
       throw error;
