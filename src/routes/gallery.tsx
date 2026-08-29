@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import JSZip from "jszip";
-import { saveAs } from "file-saver";
+import { saveBlob } from "@/lib/download";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -163,7 +163,7 @@ function GalleryPage() {
     const full = await getGalleryItem(id);
     if (!full) return;
     const ext = extOf(full.mimeType, full.type);
-    saveAs(full.blob, `grok-${id}.${ext}`);
+    saveBlob(full.blob, `grok-${id}.${ext}`);
   };
 
   const copyPrompt = async (prompt: string) => {
@@ -192,7 +192,7 @@ function GalleryPage() {
       setZipProgress(Math.round(((i + 1) / ids.length) * 100));
     }
     const blob = await zip.generateAsync({ type: "blob" });
-    saveAs(blob, `grok-gallery-${Date.now()}.zip`);
+    saveBlob(blob, `grok-gallery-${Date.now()}.zip`);
     setZipping(false);
     setShowCleanupAfter(true);
   };

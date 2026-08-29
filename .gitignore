@@ -20,6 +20,11 @@ dist-ssr
 .wrangler/
 .dev.vars
 
+# Playwright — screenshots are review artifacts, not baselines (see playwright.config.ts)
+e2e/__screens__/
+e2e/__report__/
+e2e/__artifacts__/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

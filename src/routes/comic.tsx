@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import JSZip from "jszip";
-import { saveAs } from "file-saver";
+import { saveBlob } from "@/lib/download";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -349,7 +349,7 @@ function ColorizePanel() {
       }
     }
     const blob = await zip.generateAsync({ type: "blob" });
-    saveAs(blob, `comic-colorized-${Date.now()}.zip`);
+    saveBlob(blob, `comic-colorized-${Date.now()}.zip`);
     if (failed) toast.warning(`压缩包已生成，但 ${failed} 个结果获取失败`);
   };
 
@@ -600,7 +600,7 @@ function TranslatePanel() {
       }
     }
     const blob = await zip.generateAsync({ type: "blob" });
-    saveAs(blob, `comic-translated-${Date.now()}.zip`);
+    saveBlob(blob, `comic-translated-${Date.now()}.zip`);
     if (failed) toast.warning(`压缩包已生成，但 ${failed} 个结果获取失败`);
   };
 

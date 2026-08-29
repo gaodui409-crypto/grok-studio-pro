@@ -18,7 +18,11 @@ const AccordionTrigger = React.forwardRef<
   React.ElementRef<typeof AccordionPrimitive.Trigger>,
   React.ComponentPropsWithoutRef<typeof AccordionPrimitive.Trigger>
 >(({ className, children, ...props }, ref) => (
-  <AccordionPrimitive.Header className="flex">
+  // flex-1 on the Header, not just the Trigger: when the trigger sits in a row
+  // beside sibling action buttons (fanart's scene list), only the Header is a
+  // child of that row, so without this the trigger collapses to its text width
+  // and the chevron ends up glued to the label instead of the row's right edge.
+  <AccordionPrimitive.Header className="flex flex-1">
     <AccordionPrimitive.Trigger
       ref={ref}
       className={cn(

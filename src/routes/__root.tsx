@@ -99,6 +99,10 @@ function RootComponent() {
 
   useEffect(() => {
     applySettingsDefaults(loadSettings());
+    // Marks the point where the client has taken over from the SSR HTML. The e2e
+    // suite waits on this before screenshotting, because several widgets (Radix
+    // select triggers) render blank server-side and only fill in after hydration.
+    document.documentElement.dataset.hydrated = "1";
   }, [applySettingsDefaults]);
 
   return (

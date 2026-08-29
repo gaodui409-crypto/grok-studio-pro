@@ -8,7 +8,6 @@ import {
   Pencil,
   Check,
   X,
-  ChevronDown,
   RotateCcw,
   Wand2,
   UserCircle2,
@@ -482,89 +481,92 @@ function FanartPage() {
                       isActive && "border-primary/60 shadow-[0_0_14px_oklch(0.65_0.21_285/0.2)]",
                     )}
                   >
-                    <AccordionTrigger className="py-3 hover:no-underline">
-                      <div className="flex flex-1 items-center justify-between gap-2 pr-2">
-                        {editingSceneId === scene.id ? (
-                          <div
-                            className="flex items-center gap-1"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <Input
-                              autoFocus
-                              value={editingSceneName}
-                              onChange={(e) => setEditingSceneName(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") {
-                                  e.preventDefault();
-                                  updateScene(scene.id, {
-                                    name: editingSceneName.trim() || scene.name,
-                                  });
-                                  setEditingSceneId(null);
-                                }
-                                if (e.key === "Escape") setEditingSceneId(null);
-                              }}
-                              className="h-7 w-44 text-sm"
-                            />
-                            <button
-                              onClick={() => {
+                    {/* Row actions are SIBLINGS of the trigger, not children of it.
+                        AccordionTrigger renders a <button>, so nesting these
+                        buttons (and the rename <input>) inside it was invalid HTML:
+                        React threw a hydration error on every visit, and keyboard
+                        users could never reach the inner controls. */}
+                    <div className="flex items-center gap-2 pr-1">
+                      {editingSceneId === scene.id ? (
+                        <div className="flex flex-1 items-center gap-1 py-3">
+                          <Input
+                            autoFocus
+                            value={editingSceneName}
+                            onChange={(e) => setEditingSceneName(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
                                 updateScene(scene.id, {
                                   name: editingSceneName.trim() || scene.name,
                                 });
                                 setEditingSceneId(null);
-                              }}
-                              className="text-success"
-                            >
-                              <Check className="h-4 w-4" />
-                            </button>
-                          </div>
-                        ) : (
-                          <span className="text-base font-semibold">{scene.name}</span>
-                        )}
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          {checkedCount > 0 && (
-                            <span className="rounded-full bg-primary/15 px-2 py-0.5 text-primary-glow">
-                              已选 {checkedCount}
-                            </span>
-                          )}
-                          {mode === "single" && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setF({ activeSceneId: scene.id });
-                              }}
-                              className={cn(
-                                "rounded-full border px-2 py-0.5 transition",
-                                isActive
-                                  ? "border-primary/60 bg-primary/20 text-primary-glow"
-                                  : "border-border/60 hover:border-primary/40",
-                              )}
-                            >
-                              {isActive ? "当前生成" : "选为生成场景"}
-                            </button>
-                          )}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setEditingSceneId(scene.id);
-                              setEditingSceneName(scene.name);
+                              }
+                              if (e.key === "Escape") setEditingSceneId(null);
                             }}
-                            className="opacity-60 hover:opacity-100"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
+                            className="h-7 w-44 text-sm"
+                          />
                           <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (confirm(`删除场景「${scene.name}」？`)) removeScene(scene.id);
+                            type="button"
+                            aria-label="确认重命名"
+                            onClick={() => {
+                              updateScene(scene.id, {
+                                name: editingSceneName.trim() || scene.name,
+                              });
+                              setEditingSceneId(null);
                             }}
-                            className="opacity-60 hover:text-destructive hover:opacity-100"
+                            className="text-success"
                           >
-                            <Trash2 className="h-3.5 w-3.5" />
+                            <Check className="h-4 w-4" />
                           </button>
-                          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform" />
                         </div>
+                      ) : (
+                        <AccordionTrigger className="flex-1 py-3 hover:no-underline">
+                          <span className="text-base font-semibold">{scene.name}</span>
+                        </AccordionTrigger>
+                      )}
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        {checkedCount > 0 && (
+                          <span className="rounded-full bg-primary/15 px-2 py-0.5 text-primary-glow">
+                            已选 {checkedCount}
+                          </span>
+                        )}
+                        {mode === "single" && (
+                          <button
+                            type="button"
+                            onClick={() => setF({ activeSceneId: scene.id })}
+                            className={cn(
+                              "rounded-full border px-2 py-0.5 transition",
+                              isActive
+                                ? "border-primary/60 bg-primary/20 text-primary-glow"
+                                : "border-border/60 hover:border-primary/40",
+                            )}
+                          >
+                            {isActive ? "当前生成" : "选为生成场景"}
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          aria-label={`重命名场景 ${scene.name}`}
+                          onClick={() => {
+                            setEditingSceneId(scene.id);
+                            setEditingSceneName(scene.name);
+                          }}
+                          className="opacity-60 hover:opacity-100"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`删除场景 ${scene.name}`}
+                          onClick={() => {
+                            if (confirm(`删除场景「${scene.name}」？`)) removeScene(scene.id);
+                          }}
+                          className="opacity-60 hover:text-destructive hover:opacity-100"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
                       </div>
-                    </AccordionTrigger>
+                    </div>
                     <AccordionContent className="space-y-4 pb-4 pt-1">
                       <div className="space-y-2">
                         <Label className="text-xs uppercase tracking-wider text-muted-foreground">

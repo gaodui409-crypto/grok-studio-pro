@@ -1,11 +1,28 @@
 import JSZip from "jszip";
-import { saveAs } from "file-saver";
 import { fetchBlobChecked } from "./http";
+
+// Replaces file-saver. That package is CommonJS, and `import { saveAs }` from it
+// throws during SSR ("Named export 'saveAs' not found"), which silently knocked
+// /, /edit and /comic down to client-only rendering — the module graph reached it
+// through image-gallery.tsx. Every current browser handles this natively; the only
+// thing given up is file-saver's fallbacks for browsers this app never supported.
+export function saveBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.rel = "noopener";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  // Revoking synchronously can cancel the download in Firefox.
+  setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
 
 export async function downloadOne(url: string, filename: string) {
   try {
     const blob = await fetchBlobChecked(url);
-    saveAs(blob, filename);
+    saveBlob(blob, filename);
   } catch {
     // Fallback: open in new tab
     const a = document.createElement("a");
@@ -38,6 +55,6 @@ export async function downloadAllAsZip(
     }),
   );
   const blob = await zip.generateAsync({ type: "blob" });
-  saveAs(blob, zipName);
+  saveBlob(blob, zipName);
   return { saved, failed };
 }
