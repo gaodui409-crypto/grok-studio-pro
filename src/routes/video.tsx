@@ -13,9 +13,7 @@ import { ApiKeyBanner } from "@/components/api-key-banner";
 import { ProviderUnsupportedBanner } from "@/components/provider-banner";
 import { ImageUpload } from "@/components/image-upload";
 import { AspectRatioSelect, ResolutionSelect, VideoModelSelect } from "@/components/param-selects";
-import {
-  generateVideo, editVideo, extendVideo, pollVideo, fileToDataUri,
-} from "@/lib/xai";
+import { generateVideo, editVideo, extendVideo, pollVideo, fileToDataUri } from "@/lib/xai";
 import { addGalleryFromUrl } from "@/lib/gallery-db";
 import { downloadOne } from "@/lib/download";
 import { useAppStore, type VideoSubMode } from "@/lib/app-store";
@@ -41,9 +39,21 @@ function VideoPage() {
   const v = useAppStore((s) => s.video);
   const set = useAppStore((s) => s.setVideo);
   const {
-    subMode, prompt, duration, extendDuration, aspect, resolution, model,
-    startImage, refImages, sourceVideoUrl, sourceVideoDataUri, sourceVideoName,
-    loading, status, videoUrl,
+    subMode,
+    prompt,
+    duration,
+    extendDuration,
+    aspect,
+    resolution,
+    model,
+    startImage,
+    refImages,
+    sourceVideoUrl,
+    sourceVideoDataUri,
+    sourceVideoName,
+    loading,
+    status,
+    videoUrl,
   } = v;
 
   const onSourceFile = async (f: File | null) => {
@@ -71,11 +81,19 @@ function VideoPage() {
       let usedDuration = duration;
       if (subMode === "t2v") {
         ({ request_id } = await generateVideo({
-          prompt, duration, aspect_ratio: aspect, resolution, model,
+          prompt,
+          duration,
+          aspect_ratio: aspect,
+          resolution,
+          model,
         }));
       } else if (subMode === "i2v") {
         ({ request_id } = await generateVideo({
-          prompt, duration, aspect_ratio: aspect, resolution, model,
+          prompt,
+          duration,
+          aspect_ratio: aspect,
+          resolution,
+          model,
           image: startImage[0],
           reference_images: refImages.length ? refImages : undefined,
         }));
@@ -84,7 +102,10 @@ function VideoPage() {
       } else {
         usedDuration = extendDuration;
         ({ request_id } = await extendVideo({
-          prompt, video: videoSrc, duration: extendDuration, model,
+          prompt,
+          video: videoSrc,
+          duration: extendDuration,
+          model,
         }));
       }
 
@@ -126,7 +147,11 @@ function VideoPage() {
       <ApiKeyBanner />
       <ProviderUnsupportedBanner feature="video" />
 
-      <Tabs value={subMode} onValueChange={(val) => set({ subMode: val as VideoSubMode })} className="mb-4">
+      <Tabs
+        value={subMode}
+        onValueChange={(val) => set({ subMode: val as VideoSubMode })}
+        className="mb-4"
+      >
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="t2v">文生视频</TabsTrigger>
           <TabsTrigger value="i2v">图生视频</TabsTrigger>
@@ -157,11 +182,21 @@ function VideoPage() {
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label>起始帧（必需）</Label>
-                <ImageUpload values={startImage} onChange={(v) => set({ startImage: v })} max={1} label="上传起始图" />
+                <ImageUpload
+                  values={startImage}
+                  onChange={(v) => set({ startImage: v })}
+                  max={1}
+                  label="上传起始图"
+                />
               </div>
               <div className="space-y-2">
                 <Label>参考图（最多 7 张，可选）</Label>
-                <ImageUpload values={refImages} onChange={(v) => set({ refImages: v })} max={7} label="上传参考图" />
+                <ImageUpload
+                  values={refImages}
+                  onChange={(v) => set({ refImages: v })}
+                  max={7}
+                  label="上传参考图"
+                />
               </div>
             </div>
           )}
@@ -203,8 +238,16 @@ function VideoPage() {
           )}
 
           <div className="flex justify-end">
-            <Button onClick={handleGenerate} disabled={loading} className="bg-gradient-primary text-primary-foreground shadow-glow hover:opacity-95">
-              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+            <Button
+              onClick={handleGenerate}
+              disabled={loading}
+              className="bg-gradient-primary text-primary-foreground shadow-glow hover:opacity-95"
+            >
+              {loading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Sparkles className="mr-2 h-4 w-4" />
+              )}
               {loading ? "生成中…" : `执行 · ${SUB_LABEL[subMode]}`}
             </Button>
           </div>
@@ -222,7 +265,10 @@ function VideoPage() {
           {videoUrl && (
             <div className="space-y-3 rounded-xl border border-border/60 bg-surface/60 p-4">
               <video src={videoUrl} controls className="w-full rounded-lg" />
-              <Button variant="secondary" onClick={() => downloadOne(videoUrl, `grok-video-${Date.now()}.mp4`)}>
+              <Button
+                variant="secondary"
+                onClick={() => downloadOne(videoUrl, `grok-video-${Date.now()}.mp4`)}
+              >
                 <Download className="mr-2 h-4 w-4" /> 下载视频
               </Button>
             </div>
@@ -230,16 +276,28 @@ function VideoPage() {
         </div>
 
         <aside className="space-y-5 rounded-2xl border border-border/60 bg-card p-5 shadow-card">
-          <h3 className="font-display text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">参数</h3>
+          <h3 className="font-display text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            参数
+          </h3>
 
           {subMode === "extend" ? (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">延长时长</Label>
+                <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                  延长时长
+                </Label>
                 <span className="text-sm font-mono text-primary-glow">{extendDuration}s</span>
               </div>
-              <Slider min={2} max={10} step={1} value={[extendDuration]} onValueChange={(v) => set({ extendDuration: v[0] })} />
-              <p className="text-[11px] text-muted-foreground">范围 2–10 秒，输出比例和分辨率继承源视频</p>
+              <Slider
+                min={2}
+                max={10}
+                step={1}
+                value={[extendDuration]}
+                onValueChange={(v) => set({ extendDuration: v[0] })}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                范围 2–10 秒，输出比例和分辨率继承源视频
+              </p>
             </div>
           ) : subMode === "edit" ? (
             <p className="text-xs text-muted-foreground">视频编辑模式输出继承源视频参数。</p>
@@ -247,13 +305,25 @@ function VideoPage() {
             <>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">时长</Label>
+                  <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                    时长
+                  </Label>
                   <span className="text-sm font-mono text-primary-glow">{duration}s</span>
                 </div>
-                <Slider min={1} max={15} step={1} value={[duration]} onValueChange={(v) => set({ duration: v[0] })} />
+                <Slider
+                  min={1}
+                  max={15}
+                  step={1}
+                  value={[duration]}
+                  onValueChange={(v) => set({ duration: v[0] })}
+                />
               </div>
               <AspectRatioSelect value={aspect} onChange={(v) => set({ aspect: v })} />
-              <ResolutionSelect value={resolution} onChange={(v) => set({ resolution: v as "480p" | "720p" })} options={["480p", "720p"]} />
+              <ResolutionSelect
+                value={resolution}
+                onChange={(v) => set({ resolution: v as "480p" | "720p" })}
+                options={["480p", "720p"]}
+              />
             </>
           )}
 

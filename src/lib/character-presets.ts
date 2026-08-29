@@ -45,10 +45,7 @@ export const BUILTIN_PRESETS: CharacterPreset[] = [
       },
       {
         sceneName: "居家",
-        outfits: [
-          "default dark brown tailcoat",
-          "casual black hooded sweatshirt",
-        ],
+        outfits: ["default dark brown tailcoat", "casual black hooded sweatshirt"],
         actions: [
           "making silly faces and pranking",
           "sitting on a rooftop eating spicy noodles",
@@ -79,10 +76,7 @@ export const BUILTIN_PRESETS: CharacterPreset[] = [
     scenes: [
       {
         sceneName: "战斗",
-        outfits: [
-          "default purple kimono armor",
-          "full samurai armor with electro energy",
-        ],
+        outfits: ["default purple kimono armor", "full samurai armor with electro energy"],
         actions: [
           "drawing a glowing sword from her chest",
           "standing in a thunderstorm with lightning crackling around",
@@ -207,11 +201,7 @@ export const BUILTIN_PRESETS: CharacterPreset[] = [
     scenes: [
       {
         sceneName: "居家",
-        outfits: [
-          "default black hoodie",
-          "white pajamas",
-          "apron over casual clothes",
-        ],
+        outfits: ["default black hoodie", "white pajamas", "apron over casual clothes"],
         actions: [
           "curled up on the sofa watching anime",
           "lying in bed hugging a pillow half-asleep",
@@ -233,10 +223,7 @@ export const BUILTIN_PRESETS: CharacterPreset[] = [
       },
       {
         sceneName: "户外",
-        outfits: [
-          "casual hoodie and skirt",
-          "winter coat with scarf",
-        ],
+        outfits: ["casual hoodie and skirt", "winter coat with scarf"],
         actions: [
           "browsing in a convenience store choosing snacks",
           "sitting alone in a quiet cafe",

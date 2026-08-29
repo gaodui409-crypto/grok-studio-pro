@@ -29,10 +29,7 @@ export async function assertResponseOk(response: Response, prefix = ""): Promise
   throw new Error(prefix ? `${prefix}: ${message}` : message);
 }
 
-export async function fetchBlobChecked(
-  url: string,
-  fetchImpl: FetchLike = fetch,
-): Promise<Blob> {
+export async function fetchBlobChecked(url: string, fetchImpl: FetchLike = fetch): Promise<Blob> {
   const response = await fetchImpl(url);
   await assertResponseOk(response);
   return response.blob();

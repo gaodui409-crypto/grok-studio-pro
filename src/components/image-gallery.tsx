@@ -34,11 +34,7 @@ export function ImageGallery({
         <h3 className="font-display text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
           结果 · {images.length} 张
         </h3>
-        <Button
-          size="sm"
-          variant="secondary"
-          onClick={downloadZip}
-        >
+        <Button size="sm" variant="secondary" onClick={downloadZip}>
           <Download className="mr-1.5 h-4 w-4" /> 批量下载 zip
         </Button>
       </div>
@@ -59,7 +55,11 @@ export function ImageGallery({
               <Button size="icon" variant="secondary" onClick={() => setPreview(img.url)}>
                 <Maximize2 className="h-4 w-4" />
               </Button>
-              <Button size="icon" variant="secondary" onClick={() => downloadOne(img.url, filenameOf(i))}>
+              <Button
+                size="icon"
+                variant="secondary"
+                onClick={() => downloadOne(img.url, filenameOf(i))}
+              >
                 <Download className="h-4 w-4" />
               </Button>
             </div>
@@ -70,7 +70,13 @@ export function ImageGallery({
       <Dialog open={!!preview} onOpenChange={(o) => !o && setPreview(null)}>
         <DialogContent className="max-w-5xl border-border/60 bg-background p-2">
           <DialogTitle className="sr-only">图片预览</DialogTitle>
-          {preview && <img src={preview} alt="预览" className="max-h-[85vh] w-full rounded-lg object-contain" />}
+          {preview && (
+            <img
+              src={preview}
+              alt="预览"
+              className="max-h-[85vh] w-full rounded-lg object-contain"
+            />
+          )}
         </DialogContent>
       </Dialog>
     </div>

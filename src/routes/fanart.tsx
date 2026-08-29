@@ -1,8 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Sparkles, Loader2, Plus, Trash2, Pencil, Check, X,
-  ChevronDown, RotateCcw, Wand2, UserCircle2, Ban,
+  Sparkles,
+  Loader2,
+  Plus,
+  Trash2,
+  Pencil,
+  Check,
+  X,
+  ChevronDown,
+  RotateCcw,
+  Wand2,
+  UserCircle2,
+  Ban,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -10,30 +20,39 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  Accordion, AccordionContent, AccordionItem, AccordionTrigger,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { PageHeader } from "@/components/page-header";
 import { ApiKeyBanner } from "@/components/api-key-banner";
 import { ImageUpload } from "@/components/image-upload";
-import {
-  AspectRatioSelect, ResolutionSelect, ImageModelSelect,
-} from "@/components/param-selects";
+import { AspectRatioSelect, ResolutionSelect, ImageModelSelect } from "@/components/param-selects";
 import { EditableChipList, type EditableItem } from "@/components/editable-chip-list";
 import { useSettings } from "@/hooks/use-settings";
 import { editImages, generateImages, currentProvider, providerLabel } from "@/lib/xai";
 import {
-  loadSceneTree, saveSceneTree, newScene, DEFAULT_SCENE_TREE,
-  type Scene, type SceneTreeData,
+  loadSceneTree,
+  saveSceneTree,
+  newScene,
+  DEFAULT_SCENE_TREE,
+  type Scene,
+  type SceneTreeData,
 } from "@/lib/scene-tree";
 import { addGalleryFromUrl } from "@/lib/gallery-db";
 import { runWithConcurrency } from "@/lib/concurrency";
-import {
-  BUILTIN_PRESETS, loadCustomPresets, type CharacterPreset,
-} from "@/lib/character-presets";
+import { BUILTIN_PRESETS, loadCustomPresets, type CharacterPreset } from "@/lib/character-presets";
 import { useAppStore, applyPresetToFanart, presetExtraItems, type SceneSel } from "@/lib/app-store";
 import { cn } from "@/lib/utils";
 import { isAbortError } from "@/lib/http";
@@ -73,7 +92,9 @@ const buildPrompt = (
     sceneName && `${sceneName}场景`,
     style,
     lighting,
-    "高质量", "精细画面", "杰作",
+    "高质量",
+    "精细画面",
+    "杰作",
   ].filter(Boolean);
   return parts.join("，");
 };
@@ -89,7 +110,9 @@ function FanartPage() {
 
   // Persistent scene tree (lives in localStorage, separate from per-page store)
   const [tree, setTree] = useState<SceneTreeData>(loadSceneTree);
-  useEffect(() => { saveSceneTree(tree); }, [tree]);
+  useEffect(() => {
+    saveSceneTree(tree);
+  }, [tree]);
 
   // Custom presets list (rebuilds when settings page changes them)
   const [customPresets, setCustomPresets] = useState<CharacterPreset[]>(loadCustomPresets);
@@ -105,7 +128,7 @@ function FanartPage() {
     if (!f.activeSceneId && tree.scenes[0]) {
       setF({ activeSceneId: tree.scenes[0].id });
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tree.scenes.length]);
 
   // Editing scene name (UI-only, not persisted)
@@ -117,15 +140,39 @@ function FanartPage() {
 
   // Pull from store
   const {
-    presetId, charName, charDesc, refImages, sel, styleSel, lightSel,
-    mode, activeSceneId, aspect, resolution, model, overrides,
-    running, done, total, currentPrompt,
+    presetId,
+    charName,
+    charDesc,
+    refImages,
+    sel,
+    styleSel,
+    lightSel,
+    mode,
+    activeSceneId,
+    aspect,
+    resolution,
+    model,
+    overrides,
+    running,
+    done,
+    total,
+    currentPrompt,
   } = f;
 
   // helpers ------------------------------------------------------
-  const getSel = (sceneId: string): SceneSel => sel[sceneId] ?? { outfits: {}, actions: {}, enabled: false };
+  const getSel = (sceneId: string): SceneSel =>
+    sel[sceneId] ?? { outfits: {}, actions: {}, enabled: false };
   const updateSel = (sceneId: string, patch: Partial<SceneSel>) =>
-    patchF((s) => ({ ...s, sel: { ...s.sel, [sceneId]: { ...(s.sel[sceneId] ?? { outfits: {}, actions: {}, enabled: false }), ...patch } } }));
+    patchF((s) => ({
+      ...s,
+      sel: {
+        ...s.sel,
+        [sceneId]: {
+          ...(s.sel[sceneId] ?? { outfits: {}, actions: {}, enabled: false }),
+          ...patch,
+        },
+      },
+    }));
 
   const updateScene = (id: string, patch: Partial<Scene>) =>
     setTree((t) => ({ ...t, scenes: t.scenes.map((s) => (s.id === id ? { ...s, ...patch } : s)) }));
@@ -140,7 +187,8 @@ function FanartPage() {
   const removeScene = (id: string) => {
     setTree((t) => ({ ...t, scenes: t.scenes.filter((s) => s.id !== id) }));
     patchF((s) => {
-      const next = { ...s.sel }; delete next[id];
+      const next = { ...s.sel };
+      delete next[id];
       return { ...s, sel: next };
     });
   };
@@ -152,21 +200,34 @@ function FanartPage() {
   const setSceneItems = (scene: Scene, kind: "outfits" | "actions", items: EditableItem[]) => {
     const values = items.map((i) => i.value);
     const checkMap: Record<string, boolean> = {};
-    items.forEach((i) => { if (i.checked) checkMap[i.value] = true; });
+    items.forEach((i) => {
+      if (i.checked) checkMap[i.value] = true;
+    });
     updateScene(scene.id, { [kind]: values });
     updateSel(scene.id, { [kind]: checkMap, enabled: true });
   };
 
-  const styleItems: EditableItem[] = tree.styles.map((v) => ({ value: v, checked: v === styleSel }));
-  const lightItems: EditableItem[] = tree.lighting.map((v) => ({ value: v, checked: v === lightSel }));
+  const styleItems: EditableItem[] = tree.styles.map((v) => ({
+    value: v,
+    checked: v === styleSel,
+  }));
+  const lightItems: EditableItem[] = tree.lighting.map((v) => ({
+    value: v,
+    checked: v === lightSel,
+  }));
 
   // Apply character preset --------------------------------------
   const applyPreset = (id: string) => {
     if (!id) {
       // "custom" — clear
       setF({
-        presetId: "", charName: "", charDesc: "",
-        sel: {}, styleSel: "", lightSel: "", lastPresetApplied: "",
+        presetId: "",
+        charName: "",
+        charDesc: "",
+        sel: {},
+        styleSel: "",
+        lightSel: "",
+        lastPresetApplied: "",
       });
       return;
     }
@@ -208,9 +269,10 @@ function FanartPage() {
   // Build prompts list ------------------------------------------
   const promptItems = useMemo<PromptItem[]>(() => {
     const out: PromptItem[] = [];
-    const scenes = mode === "single"
-      ? tree.scenes.filter((s) => s.id === activeSceneId)
-      : tree.scenes.filter((s) => getSel(s.id).enabled);
+    const scenes =
+      mode === "single"
+        ? tree.scenes.filter((s) => s.id === activeSceneId)
+        : tree.scenes.filter((s) => getSel(s.id).enabled);
 
     scenes.forEach((scene) => {
       const s = getSel(scene.id);
@@ -222,13 +284,14 @@ function FanartPage() {
         actionArr.forEach((action) => {
           if (!outfit && !action) return;
           const id = `${scene.id}::${outfit}::${action}`;
-          const prompt = overrides[id] ?? buildPrompt(charDesc, scene.name, outfit, action, styleSel, lightSel);
+          const prompt =
+            overrides[id] ?? buildPrompt(charDesc, scene.name, outfit, action, styleSel, lightSel);
           out.push({ id, prompt, sceneName: scene.name, outfit, action });
         });
       });
     });
     return out;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tree, sel, mode, activeSceneId, charDesc, styleSel, lightSel, overrides]);
 
   const totalCost = (promptItems.length * PRICE_PER_IMAGE).toFixed(2);
@@ -244,50 +307,56 @@ function FanartPage() {
     let success = 0;
 
     try {
-      await runWithConcurrency(promptItems, async (item) => {
-        controller.signal.throwIfAborted();
-        setF({ currentPrompt: item.prompt });
-        try {
-          const data = refImages.length
-            ? await editImages({
-                prompt: item.prompt,
-                images: refImages,
-                n: 1,
-                resolution,
-                model,
-                signal: controller.signal,
-              })
-            : await generateImages({
-                prompt: item.prompt,
-                n: 1,
-                aspect_ratio: aspect,
-                resolution,
-                model,
-                signal: controller.signal,
-              });
-          for (const img of data) {
-            try {
-              await addGalleryFromUrl(img.url, {
-                prompt: item.prompt,
-                sceneName: item.sceneName,
-                outfit: item.outfit,
-                action: item.action,
-                character: charName || charDesc.slice(0, 20),
-                model,
-                provider: providerLabel(currentProvider()),
-              });
-              success++;
-            } catch (e) {
-              console.error("save gallery failed", e);
+      await runWithConcurrency(
+        promptItems,
+        async (item) => {
+          controller.signal.throwIfAborted();
+          setF({ currentPrompt: item.prompt });
+          try {
+            const data = refImages.length
+              ? await editImages({
+                  prompt: item.prompt,
+                  images: refImages,
+                  n: 1,
+                  resolution,
+                  model,
+                  signal: controller.signal,
+                })
+              : await generateImages({
+                  prompt: item.prompt,
+                  n: 1,
+                  aspect_ratio: aspect,
+                  resolution,
+                  model,
+                  signal: controller.signal,
+                });
+            for (const img of data) {
+              try {
+                await addGalleryFromUrl(img.url, {
+                  prompt: item.prompt,
+                  sceneName: item.sceneName,
+                  outfit: item.outfit,
+                  action: item.action,
+                  character: charName || charDesc.slice(0, 20),
+                  model,
+                  provider: providerLabel(currentProvider()),
+                });
+                success++;
+              } catch (e) {
+                console.error("save gallery failed", e);
+              }
             }
+          } catch (e) {
+            if (isAbortError(e)) throw e;
+            toast.error(
+              `「${item.sceneName} · ${item.action || item.outfit}」失败：${(e as Error).message}`,
+            );
+          } finally {
+            patchF((s) => ({ ...s, done: s.done + 1 }));
           }
-        } catch (e) {
-          if (isAbortError(e)) throw e;
-          toast.error(`「${item.sceneName} · ${item.action || item.outfit}」失败：${(e as Error).message}`);
-        } finally {
-          patchF((s) => ({ ...s, done: s.done + 1 }));
-        }
-      }, settings.concurrency);
+        },
+        settings.concurrency,
+      );
       toast.success(`批量完成，已保存到画廊 ${success} 张`);
     } catch (e) {
       if (isAbortError(e)) toast.info("已取消批量生成");
@@ -319,23 +388,35 @@ function FanartPage() {
               <h3 className="font-display text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                 角色设定
               </h3>
-              <span className="text-[11px] text-muted-foreground">在「设置 · 角色预设」中可管理自定义预设</span>
+              <span className="text-[11px] text-muted-foreground">
+                在「设置 · 角色预设」中可管理自定义预设
+              </span>
             </div>
 
             <div className="space-y-2">
               <Label className="flex items-center gap-1.5 text-xs uppercase tracking-wider text-muted-foreground">
                 <UserCircle2 className="h-3.5 w-3.5" /> 角色预设
               </Label>
-              <Select value={presetId || "__custom"} onValueChange={(v) => applyPreset(v === "__custom" ? "" : v)}>
-                <SelectTrigger><SelectValue placeholder="选择内置或自定义角色" /></SelectTrigger>
+              <Select
+                value={presetId || "__custom"}
+                onValueChange={(v) => applyPreset(v === "__custom" ? "" : v)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="选择内置或自定义角色" />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="__custom">自定义角色（清空填空）</SelectItem>
                   {BUILTIN_PRESETS.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>★ {p.name}</SelectItem>
+                    <SelectItem key={p.id} value={p.id}>
+                      ★ {p.name}
+                    </SelectItem>
                   ))}
-                  {customPresets.length > 0 && customPresets.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                  ))}
+                  {customPresets.length > 0 &&
+                    customPresets.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
@@ -343,7 +424,11 @@ function FanartPage() {
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label>角色名（用于画廊筛选）</Label>
-                <Input value={charName} onChange={(e) => setF({ charName: e.target.value })} placeholder="例如：白雪" />
+                <Input
+                  value={charName}
+                  onChange={(e) => setF({ charName: e.target.value })}
+                  placeholder="例如：白雪"
+                />
               </div>
               <div className="space-y-2">
                 <Label>参考图（1–3 张，可选）</Label>
@@ -368,8 +453,11 @@ function FanartPage() {
                 场景树
               </h3>
               <Button
-                size="sm" variant="ghost"
-                onClick={() => { if (confirm("重置为默认场景？所有自定义将丢失。")) setTree(DEFAULT_SCENE_TREE); }}
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  if (confirm("重置为默认场景？所有自定义将丢失。")) setTree(DEFAULT_SCENE_TREE);
+                }}
               >
                 <RotateCcw className="mr-1 h-3 w-3" /> 重置
               </Button>
@@ -395,21 +483,37 @@ function FanartPage() {
                     <AccordionTrigger className="py-3 hover:no-underline">
                       <div className="flex flex-1 items-center justify-between gap-2 pr-2">
                         {editingSceneId === scene.id ? (
-                          <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                          <div
+                            className="flex items-center gap-1"
+                            onClick={(e) => e.stopPropagation()}
+                          >
                             <Input
                               autoFocus
                               value={editingSceneName}
                               onChange={(e) => setEditingSceneName(e.target.value)}
                               onKeyDown={(e) => {
-                                if (e.key === "Enter") { e.preventDefault(); updateScene(scene.id, { name: editingSceneName.trim() || scene.name }); setEditingSceneId(null); }
+                                if (e.key === "Enter") {
+                                  e.preventDefault();
+                                  updateScene(scene.id, {
+                                    name: editingSceneName.trim() || scene.name,
+                                  });
+                                  setEditingSceneId(null);
+                                }
                                 if (e.key === "Escape") setEditingSceneId(null);
                               }}
                               className="h-7 w-44 text-sm"
                             />
                             <button
-                              onClick={() => { updateScene(scene.id, { name: editingSceneName.trim() || scene.name }); setEditingSceneId(null); }}
+                              onClick={() => {
+                                updateScene(scene.id, {
+                                  name: editingSceneName.trim() || scene.name,
+                                });
+                                setEditingSceneId(null);
+                              }}
                               className="text-success"
-                            ><Check className="h-4 w-4" /></button>
+                            >
+                              <Check className="h-4 w-4" />
+                            </button>
                           </div>
                         ) : (
                           <span className="text-base font-semibold">{scene.name}</span>
@@ -422,7 +526,10 @@ function FanartPage() {
                           )}
                           {mode === "single" && (
                             <button
-                              onClick={(e) => { e.stopPropagation(); setF({ activeSceneId: scene.id }); }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setF({ activeSceneId: scene.id });
+                              }}
                               className={cn(
                                 "rounded-full border px-2 py-0.5 transition",
                                 isActive
@@ -434,20 +541,33 @@ function FanartPage() {
                             </button>
                           )}
                           <button
-                            onClick={(e) => { e.stopPropagation(); setEditingSceneId(scene.id); setEditingSceneName(scene.name); }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingSceneId(scene.id);
+                              setEditingSceneName(scene.name);
+                            }}
                             className="opacity-60 hover:opacity-100"
-                          ><Pencil className="h-3.5 w-3.5" /></button>
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
                           <button
-                            onClick={(e) => { e.stopPropagation(); if (confirm(`删除场景「${scene.name}」？`)) removeScene(scene.id); }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (confirm(`删除场景「${scene.name}」？`)) removeScene(scene.id);
+                            }}
                             className="opacity-60 hover:text-destructive hover:opacity-100"
-                          ><Trash2 className="h-3.5 w-3.5" /></button>
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
                           <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform" />
                         </div>
                       </div>
                     </AccordionTrigger>
                     <AccordionContent className="space-y-4 pb-4 pt-1">
                       <div className="space-y-2">
-                        <Label className="text-xs uppercase tracking-wider text-muted-foreground">服装</Label>
+                        <Label className="text-xs uppercase tracking-wider text-muted-foreground">
+                          服装
+                        </Label>
                         <EditableChipList
                           items={sceneItemsAs(scene, "outfits")}
                           onChange={(items) => setSceneItems(scene, "outfits", items)}
@@ -455,7 +575,9 @@ function FanartPage() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label className="text-xs uppercase tracking-wider text-muted-foreground">动作</Label>
+                        <Label className="text-xs uppercase tracking-wider text-muted-foreground">
+                          动作
+                        </Label>
                         <EditableChipList
                           items={sceneItemsAs(scene, "actions")}
                           onChange={(items) => setSceneItems(scene, "actions", items)}
@@ -485,11 +607,16 @@ function FanartPage() {
           {/* Global style / lighting */}
           <section className="space-y-4 rounded-2xl border border-border/60 bg-card p-5 shadow-card">
             <h3 className="font-display text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              全局设定 <span className="ml-2 normal-case tracking-normal text-foreground/50 text-xs">单选 · 可留空</span>
+              全局设定{" "}
+              <span className="ml-2 normal-case tracking-normal text-foreground/50 text-xs">
+                单选 · 可留空
+              </span>
             </h3>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label className="text-xs uppercase tracking-wider text-muted-foreground">画风</Label>
+                <Label className="text-xs uppercase tracking-wider text-muted-foreground">
+                  画风
+                </Label>
                 <button
                   type="button"
                   onClick={() => setF({ styleSel: "" })}
@@ -499,7 +626,9 @@ function FanartPage() {
                       ? "border-primary/60 bg-primary/20 text-primary-glow"
                       : "border-border/60 text-muted-foreground hover:border-primary/40",
                   )}
-                >无（让 AI 自由发挥）</button>
+                >
+                  无（让 AI 自由发挥）
+                </button>
               </div>
               <EditableChipList
                 multi={false}
@@ -514,7 +643,9 @@ function FanartPage() {
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label className="text-xs uppercase tracking-wider text-muted-foreground">光影氛围</Label>
+                <Label className="text-xs uppercase tracking-wider text-muted-foreground">
+                  光影氛围
+                </Label>
                 <button
                   type="button"
                   onClick={() => setF({ lightSel: "" })}
@@ -524,7 +655,9 @@ function FanartPage() {
                       ? "border-primary/60 bg-primary/20 text-primary-glow"
                       : "border-border/60 text-muted-foreground hover:border-primary/40",
                   )}
-                >无（让 AI 自由发挥）</button>
+                >
+                  无（让 AI 自由发挥）
+                </button>
               </div>
               <EditableChipList
                 multi={false}
@@ -554,8 +687,11 @@ function FanartPage() {
                   <TabsTrigger value="multi">多场景混合</TabsTrigger>
                 </TabsList>
                 <TabsContent value="single" className="pt-2 text-xs text-muted-foreground">
-                  当前场景：<span className="text-foreground">{tree.scenes.find((s) => s.id === activeSceneId)?.name ?? "未选择"}</span>。
-                  生成「服装 × 动作」全组合。
+                  当前场景：
+                  <span className="text-foreground">
+                    {tree.scenes.find((s) => s.id === activeSceneId)?.name ?? "未选择"}
+                  </span>
+                  。 生成「服装 × 动作」全组合。
                 </TabsContent>
                 <TabsContent value="multi" className="pt-2 text-xs text-muted-foreground">
                   使用所有展开过/勾选过的场景，按场景依次生成。
@@ -564,7 +700,10 @@ function FanartPage() {
 
               <div className="grid grid-cols-2 gap-3">
                 <AspectRatioSelect value={aspect} onChange={(v) => setF({ aspect: v })} />
-                <ResolutionSelect value={resolution} onChange={(v) => setF({ resolution: v as "1k" | "2k" })} />
+                <ResolutionSelect
+                  value={resolution}
+                  onChange={(v) => setF({ resolution: v as "1k" | "2k" })}
+                />
               </div>
               <ImageModelSelect value={model} onChange={(v) => setF({ model: v })} />
 
@@ -587,11 +726,19 @@ function FanartPage() {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">进度</span>
-                    <span className="font-mono text-primary-glow">{done}/{total || promptItems.length}</span>
+                    <span className="font-mono text-primary-glow">
+                      {done}/{total || promptItems.length}
+                    </span>
                   </div>
-                  <Progress value={(total || promptItems.length) ? (done / (total || promptItems.length)) * 100 : 0} />
+                  <Progress
+                    value={
+                      total || promptItems.length ? (done / (total || promptItems.length)) * 100 : 0
+                    }
+                  />
                   {currentPrompt && (
-                    <p className="line-clamp-2 text-xs text-muted-foreground">正在生成：{currentPrompt}</p>
+                    <p className="line-clamp-2 text-xs text-muted-foreground">
+                      正在生成：{currentPrompt}
+                    </p>
                   )}
                 </div>
               )}
@@ -602,7 +749,11 @@ function FanartPage() {
                   disabled={running || !promptItems.length}
                   className="flex-1 bg-gradient-primary text-primary-foreground shadow-glow hover:opacity-95"
                 >
-                  {running ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+                  {running ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="mr-2 h-4 w-4" />
+                  )}
                   {running ? "批量生成中…" : `开始批量生成 · ${promptItems.length} 张`}
                 </Button>
                 {running && (
@@ -627,34 +778,51 @@ function FanartPage() {
               </div>
               <ScrollArea className="h-[420px] pr-2">
                 {promptItems.length === 0 ? (
-                  <p className="py-8 text-center text-xs text-muted-foreground">勾选服装与动作以预览提示词</p>
+                  <p className="py-8 text-center text-xs text-muted-foreground">
+                    勾选服装与动作以预览提示词
+                  </p>
                 ) : (
                   <ul className="space-y-2">
                     {promptItems.map((p, idx) => (
-                      <li key={p.id} className="rounded-lg border border-border/60 bg-surface/40 p-2.5 text-xs">
+                      <li
+                        key={p.id}
+                        className="rounded-lg border border-border/60 bg-surface/40 p-2.5 text-xs"
+                      >
                         <div className="mb-1 flex items-center justify-between">
                           <span className="font-mono text-primary-glow">#{idx + 1}</span>
                           <div className="flex items-center gap-1 text-muted-foreground">
                             <span>{p.sceneName}</span>
                             {editingPromptId === p.id ? (
-                              <button onClick={() => {
-                                setF({ overrides: { ...overrides, [p.id]: editingPromptVal } });
-                                setEditingPromptId(null);
-                              }}><Check className="h-3.5 w-3.5 text-success" /></button>
+                              <button
+                                onClick={() => {
+                                  setF({ overrides: { ...overrides, [p.id]: editingPromptVal } });
+                                  setEditingPromptId(null);
+                                }}
+                              >
+                                <Check className="h-3.5 w-3.5 text-success" />
+                              </button>
                             ) : (
                               <button
-                                onClick={() => { setEditingPromptId(p.id); setEditingPromptVal(p.prompt); }}
+                                onClick={() => {
+                                  setEditingPromptId(p.id);
+                                  setEditingPromptVal(p.prompt);
+                                }}
                                 className="hover:text-foreground"
-                              ><Wand2 className="h-3 w-3" /></button>
+                              >
+                                <Wand2 className="h-3 w-3" />
+                              </button>
                             )}
                             {overrides[p.id] && (
                               <button
                                 onClick={() => {
-                                  const n = { ...overrides }; delete n[p.id];
+                                  const n = { ...overrides };
+                                  delete n[p.id];
                                   setF({ overrides: n });
                                 }}
                                 className="hover:text-destructive"
-                              ><X className="h-3 w-3" /></button>
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
                             )}
                           </div>
                         </div>
@@ -666,7 +834,9 @@ function FanartPage() {
                             autoFocus
                           />
                         ) : (
-                          <p className="break-words leading-relaxed text-foreground/85">{p.prompt}</p>
+                          <p className="break-words leading-relaxed text-foreground/85">
+                            {p.prompt}
+                          </p>
                         )}
                       </li>
                     ))}

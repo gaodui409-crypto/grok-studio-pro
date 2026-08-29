@@ -36,17 +36,34 @@ export const Route = createRootRoute({
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "Grok Studio — xAI 图片与视频生成工作台" },
-      { name: "description", content: "Grok Studio：调用 xAI Grok Imagine 在浏览器中生成图片、视频与同人图批量创作。" },
+      {
+        name: "description",
+        content: "Grok Studio：调用 xAI Grok Imagine 在浏览器中生成图片、视频与同人图批量创作。",
+      },
       { name: "author", content: "Grok Studio" },
       { property: "og:title", content: "Grok Studio — xAI 图片与视频生成工作台" },
-      { property: "og:description", content: "Grok Studio：调用 xAI Grok Imagine 在浏览器中生成图片、视频与同人图批量创作。" },
+      {
+        property: "og:description",
+        content: "Grok Studio：调用 xAI Grok Imagine 在浏览器中生成图片、视频与同人图批量创作。",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
       { name: "twitter:title", content: "Grok Studio — xAI 图片与视频生成工作台" },
-      { name: "twitter:description", content: "Grok Studio：调用 xAI Grok Imagine 在浏览器中生成图片、视频与同人图批量创作。" },
-      { property: "og:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/5479d024-5fcb-4117-8b14-02fc6877e39a/id-preview-813b6095--44488e47-94b3-422f-af4b-69c0395f3d3f.lovable.app-1777553668354.png" },
-      { name: "twitter:image", content: "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/5479d024-5fcb-4117-8b14-02fc6877e39a/id-preview-813b6095--44488e47-94b3-422f-af4b-69c0395f3d3f.lovable.app-1777553668354.png" },
+      {
+        name: "twitter:description",
+        content: "Grok Studio：调用 xAI Grok Imagine 在浏览器中生成图片、视频与同人图批量创作。",
+      },
+      {
+        property: "og:image",
+        content:
+          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/5479d024-5fcb-4117-8b14-02fc6877e39a/id-preview-813b6095--44488e47-94b3-422f-af4b-69c0395f3d3f.lovable.app-1777553668354.png",
+      },
+      {
+        name: "twitter:image",
+        content:
+          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/5479d024-5fcb-4117-8b14-02fc6877e39a/id-preview-813b6095--44488e47-94b3-422f-af4b-69c0395f3d3f.lovable.app-1777553668354.png",
+      },
     ],
     links: [
       { rel: "stylesheet", href: appCss },

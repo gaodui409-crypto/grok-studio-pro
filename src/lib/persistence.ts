@@ -1,6 +1,4 @@
-export type PersistenceResult =
-  | { saved: true }
-  | { saved: false; error: Error };
+export type PersistenceResult = { saved: true } | { saved: false; error: Error };
 
 function asError(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error));

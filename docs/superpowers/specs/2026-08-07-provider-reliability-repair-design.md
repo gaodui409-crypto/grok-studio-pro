@@ -122,4 +122,3 @@ Regression tests cover:
 - Comic persistence aggregation reports failed saves.
 
 Each production change follows red-green-refactor. After focused tests pass, run the complete test command, lint, TypeScript checking, and production build. If dependency installation is still unavailable, the Node-only regression suite remains mandatory and the missing dependency-based checks are reported explicitly.
-

@@ -72,13 +72,20 @@ export function EditableChipList({
                     value={editVal}
                     onChange={(e) => setEditVal(e.target.value)}
                     onKeyDown={(e) => {
-                      if (e.key === "Enter") { e.preventDefault(); commitEdit(); }
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        commitEdit();
+                      }
                       if (e.key === "Escape") setEditingIdx(null);
                     }}
                     className="h-6 w-32 px-1.5 text-xs"
                   />
-                  <button onClick={commitEdit} className="text-success"><Check className="h-3 w-3" /></button>
-                  <button onClick={() => setEditingIdx(null)} className="text-muted-foreground"><X className="h-3 w-3" /></button>
+                  <button onClick={commitEdit} className="text-success">
+                    <Check className="h-3 w-3" />
+                  </button>
+                  <button onClick={() => setEditingIdx(null)} className="text-muted-foreground">
+                    <X className="h-3 w-3" />
+                  </button>
                 </>
               ) : (
                 <>
@@ -87,7 +94,9 @@ export function EditableChipList({
                     onCheckedChange={() => toggle(i)}
                     className="h-3.5 w-3.5"
                   />
-                  <button onClick={() => toggle(i)} className="select-none">{it.value}</button>
+                  <button onClick={() => toggle(i)} className="select-none">
+                    {it.value}
+                  </button>
                   <button
                     onClick={() => startEdit(i)}
                     className="opacity-0 transition group-hover:opacity-70 hover:!opacity-100"

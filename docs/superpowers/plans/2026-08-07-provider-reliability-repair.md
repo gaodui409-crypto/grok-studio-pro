@@ -86,7 +86,10 @@ test("Hugging Face ignores an xAI page model", () => {
 });
 
 test("ModelScope always uses its supported model", () => {
-  assert.equal(resolveImageModel("modelscope", "grok-imagine-image-pro", models), MODELSCOPE_IMAGE_MODEL);
+  assert.equal(
+    resolveImageModel("modelscope", "grok-imagine-image-pro", models),
+    MODELSCOPE_IMAGE_MODEL,
+  );
 });
 ```
 
@@ -378,7 +381,10 @@ test("falls back to HTTP status for an empty body", async () => {
 
 test("checked blob fetch rejects non-2xx responses", async () => {
   await assert.rejects(
-    fetchBlobChecked("https://example.test/image.png", async () => new Response("missing", { status: 404 })),
+    fetchBlobChecked(
+      "https://example.test/image.png",
+      async () => new Response("missing", { status: 404 }),
+    ),
     /missing/,
   );
 });
@@ -438,10 +444,7 @@ export async function assertResponseOk(response: Response, prefix = ""): Promise
   throw new Error(prefix ? `${prefix}: ${message}` : message);
 }
 
-export async function fetchBlobChecked(
-  url: string,
-  fetchImpl: FetchLike = fetch,
-): Promise<Blob> {
+export async function fetchBlobChecked(url: string, fetchImpl: FetchLike = fetch): Promise<Blob> {
   const response = await fetchImpl(url);
   await assertResponseOk(response);
   return response.blob();
@@ -507,14 +510,16 @@ export async function downloadAllAsZip(
   const zip = new JSZip();
   let saved = 0;
   let failed = 0;
-  await Promise.all(items.map(async (item) => {
-    try {
-      zip.file(item.filename, await fetchBlobChecked(item.url));
-      saved++;
-    } catch {
-      failed++;
-    }
-  }));
+  await Promise.all(
+    items.map(async (item) => {
+      try {
+        zip.file(item.filename, await fetchBlobChecked(item.url));
+        saved++;
+      } catch {
+        failed++;
+      }
+    }),
+  );
   saveAs(await zip.generateAsync({ type: "blob" }), zipName);
   return { saved, failed };
 }
@@ -585,7 +590,9 @@ test("returns the first output image after success", async () => {
 
 test("rejects known terminal failure states", async () => {
   await assert.rejects(
-    pollModelScopeTask(async () => ({ task_status: "CANCELLED", errors: "quota" }), { sleep: noDelay }),
+    pollModelScopeTask(async () => ({ task_status: "CANCELLED", errors: "quota" }), {
+      sleep: noDelay,
+    }),
     /CANCELLED.*quota/,
   );
 });
@@ -594,7 +601,9 @@ test("times out pending tasks", async () => {
   let now = 0;
   await assert.rejects(
     pollModelScopeTask(async () => ({ task_status: "RUNNING" }), {
-      sleep: async () => { now += 6; },
+      sleep: async () => {
+        now += 6;
+      },
       now: () => now,
       timeoutMs: 5,
     }),
@@ -712,17 +721,20 @@ Expected: PASS, 4 tests, 0 failures.
 Add `signal?: AbortSignal` to `ImageGenParams` and `ImageEditParams`. Pass `signal: p.signal` to xAI, ModelScope start/poll, and HF fetch calls. Replace the inline ModelScope `while (true)` with:
 
 ```ts
-const url = await pollModelScopeTask(async () => {
-  const poll = await fetch(`${baseUrl}/v1/tasks/${task_id}`, {
-    signal: p.signal,
-    headers: {
-      Authorization: `Bearer ${cfg.modelscopeToken}`,
-      "X-ModelScope-Task-Type": "image_generation",
-    },
-  });
-  await assertResponseOk(poll, "ModelScope poll");
-  return poll.json() as Promise<ModelScopeTaskStatus>;
-}, { signal: p.signal });
+const url = await pollModelScopeTask(
+  async () => {
+    const poll = await fetch(`${baseUrl}/v1/tasks/${task_id}`, {
+      signal: p.signal,
+      headers: {
+        Authorization: `Bearer ${cfg.modelscopeToken}`,
+        "X-ModelScope-Task-Type": "image_generation",
+      },
+    });
+    await assertResponseOk(poll, "ModelScope poll");
+    return poll.json() as Promise<ModelScopeTaskStatus>;
+  },
+  { signal: p.signal },
+);
 return { url, mime_type: "image/png" };
 ```
 
@@ -741,11 +753,13 @@ At the start of `handleGenerate`, create and store a controller; pass `signal` t
 Render a secondary cancel button beside Generate while loading:
 
 ```tsx
-{loading && (
-  <Button type="button" variant="secondary" onClick={cancelGenerate}>
-    <X className="mr-2 h-4 w-4" /> 取消
-  </Button>
-)}
+{
+  loading && (
+    <Button type="button" variant="secondary" onClick={cancelGenerate}>
+      <X className="mr-2 h-4 w-4" /> 取消
+    </Button>
+  );
+}
 ```
 
 - [ ] **Step 7: Add fanart batch cancellation**
@@ -761,7 +775,11 @@ Replace the single run button with:
     disabled={running || !promptItems.length}
     className="flex-1 bg-gradient-primary text-primary-foreground shadow-glow hover:opacity-95"
   >
-    {running ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+    {running ? (
+      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+    ) : (
+      <Sparkles className="mr-2 h-4 w-4" />
+    )}
     {running ? "批量生成中…" : `开始批量生成 · ${promptItems.length} 张`}
   </Button>
   {running && (
@@ -808,7 +826,10 @@ import { ObjectUrlRegistry } from "./object-url-registry.ts";
 
 test("reuses an existing object URL for the same item", () => {
   let created = 0;
-  const registry = new ObjectUrlRegistry(() => `blob:${++created}`, () => {});
+  const registry = new ObjectUrlRegistry(
+    () => `blob:${++created}`,
+    () => {},
+  );
   const blob = new Blob(["a"]);
   assert.equal(registry.register("one", blob), "blob:1");
   assert.equal(registry.register("one", blob), "blob:1");
@@ -817,7 +838,10 @@ test("reuses an existing object URL for the same item", () => {
 
 test("reconcile revokes URLs for removed items", () => {
   const revoked: string[] = [];
-  const registry = new ObjectUrlRegistry((blob) => `blob:${blob.size}`, (url) => revoked.push(url));
+  const registry = new ObjectUrlRegistry(
+    (blob) => `blob:${blob.size}`,
+    (url) => revoked.push(url),
+  );
   registry.register("one", new Blob(["a"]));
   registry.register("two", new Blob(["bb"]));
   registry.reconcile(new Set(["two"]));
@@ -827,7 +851,10 @@ test("reconcile revokes URLs for removed items", () => {
 
 test("dispose revokes every remaining URL", () => {
   const revoked: string[] = [];
-  const registry = new ObjectUrlRegistry((blob) => `blob:${blob.size}`, (url) => revoked.push(url));
+  const registry = new ObjectUrlRegistry(
+    (blob) => `blob:${blob.size}`,
+    (url) => revoked.push(url),
+  );
   registry.register("one", new Blob(["a"]));
   registry.register("two", new Blob(["bb"]));
   registry.dispose();
@@ -856,10 +883,7 @@ export class ObjectUrlRegistry {
   private readonly createUrl: (blob: Blob) => string;
   private readonly revokeUrl: (url: string) => void;
 
-  constructor(
-    createUrl: (blob: Blob) => string,
-    revokeUrl: (url: string) => void,
-  ) {
+  constructor(createUrl: (blob: Blob) => string, revokeUrl: (url: string) => void) {
     this.createUrl = createUrl;
     this.revokeUrl = revokeUrl;
   }
@@ -943,7 +967,9 @@ useEffect(() => {
     }
   })();
 
-  return () => { cancelled = true; };
+  return () => {
+    cancelled = true;
+  };
 }, [items, urlRegistry]);
 
 useEffect(() => () => urlRegistry.dispose(), [urlRegistry]);
@@ -990,7 +1016,9 @@ test("reports successful persistence", async () => {
 });
 
 test("captures persistence failures without throwing", async () => {
-  const result = await attemptPersistence(async () => { throw new Error("quota exceeded"); });
+  const result = await attemptPersistence(async () => {
+    throw new Error("quota exceeded");
+  });
   assert.equal(result.saved, false);
   if (!result.saved) assert.equal(result.error.message, "quota exceeded");
 });
@@ -1011,9 +1039,7 @@ Expected: FAIL with `ERR_MODULE_NOT_FOUND` for `persistence.ts`.
 Create `src/lib/persistence.ts`:
 
 ```ts
-export type PersistenceResult =
-  | { saved: true }
-  | { saved: false; error: Error };
+export type PersistenceResult = { saved: true } | { saved: false; error: Error };
 
 function asError(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error));
@@ -1051,13 +1077,15 @@ const saveErrors: string[] = [];
 Replace each swallowed `addGalleryFromUrl(...).catch(() => {})` with:
 
 ```ts
-const persistence = await attemptPersistence(() => addGalleryFromUrl(img.url, {
-  prompt: basePrompt,
-  model,
-  sceneName: "漫画上色",
-  type: "image",
-  provider: providerLabel(currentProvider()),
-}));
+const persistence = await attemptPersistence(() =>
+  addGalleryFromUrl(img.url, {
+    prompt: basePrompt,
+    model,
+    sceneName: "漫画上色",
+    type: "image",
+    provider: providerLabel(currentProvider()),
+  }),
+);
 if (!persistence.saved) {
   unsaved++;
   saveErrors.push(`${page.name}: ${persistence.error.message}`);

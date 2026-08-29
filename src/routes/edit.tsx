@@ -38,9 +38,16 @@ function EditPage() {
       const data = await editImages({ prompt, images, n, resolution, model });
       set({ results: data });
       toast.success(`已生成 ${data.length} 张图片`);
-      Promise.all(data.map((img) =>
-        addGalleryFromUrl(img.url, { prompt, model, sceneName: "图生图", provider: providerLabel(currentProvider()) }),
-      ))
+      Promise.all(
+        data.map((img) =>
+          addGalleryFromUrl(img.url, {
+            prompt,
+            model,
+            sceneName: "图生图",
+            provider: providerLabel(currentProvider()),
+          }),
+        ),
+      )
         .then(() => toast.success("已自动保存到画廊"))
         .catch((e) => toast.error(`画廊保存失败：${(e as Error).message}`));
     } catch (e) {
@@ -52,7 +59,11 @@ function EditPage() {
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-8 md:px-8">
-      <PageHeader title="图生图 / 编辑" description="单图编辑或多图融合。多图模式下可在提示词中用 <IMAGE_0>、<IMAGE_1> 引用。" icon={Wand2} />
+      <PageHeader
+        title="图生图 / 编辑"
+        description="单图编辑或多图融合。多图模式下可在提示词中用 <IMAGE_0>、<IMAGE_1> 引用。"
+        icon={Wand2}
+      />
       <ApiKeyBanner />
       <ProviderUnsupportedBanner feature="i2i" />
 
@@ -76,20 +87,41 @@ function EditPage() {
             />
           </div>
           <div className="flex justify-end">
-            <Button onClick={handleGenerate} disabled={loading} className="bg-gradient-primary text-primary-foreground shadow-glow hover:opacity-95">
-              {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+            <Button
+              onClick={handleGenerate}
+              disabled={loading}
+              className="bg-gradient-primary text-primary-foreground shadow-glow hover:opacity-95"
+            >
+              {loading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Sparkles className="mr-2 h-4 w-4" />
+              )}
               {loading ? "生成中…" : "生成"}
             </Button>
           </div>
         </div>
 
         <aside className="space-y-4 rounded-2xl border border-border/60 bg-card p-5 shadow-card">
-          <h3 className="font-display text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">参数</h3>
+          <h3 className="font-display text-sm font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            参数
+          </h3>
           <div className="space-y-1.5">
-            <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">数量 (1–10)</Label>
-            <Input type="number" min={1} max={10} value={n} onChange={(e) => set({ n: Math.min(10, Math.max(1, +e.target.value || 1)) })} />
+            <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              数量 (1–10)
+            </Label>
+            <Input
+              type="number"
+              min={1}
+              max={10}
+              value={n}
+              onChange={(e) => set({ n: Math.min(10, Math.max(1, +e.target.value || 1)) })}
+            />
           </div>
-          <ResolutionSelect value={resolution} onChange={(v) => set({ resolution: v as "1k" | "2k" })} />
+          <ResolutionSelect
+            value={resolution}
+            onChange={(v) => set({ resolution: v as "1k" | "2k" })}
+          />
           <ImageModelSelect value={model} onChange={(v) => set({ model: v })} />
         </aside>
       </div>

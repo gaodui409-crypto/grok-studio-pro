@@ -18,7 +18,10 @@ export function ProviderUnsupportedBanner({ feature }: { feature: "i2i" | "video
       <AlertTriangle className="h-4 w-4 shrink-0 text-warning" />
       <span className="text-foreground/90">
         当前来源（{providerLabel(s.provider)}）不支持此功能，请前往
-        <Link to="/settings" className="mx-1 font-semibold text-primary-glow underline-offset-4 hover:underline">
+        <Link
+          to="/settings"
+          className="mx-1 font-semibold text-primary-glow underline-offset-4 hover:underline"
+        >
           设置
         </Link>
         切换至「xAI / NewAPI」。

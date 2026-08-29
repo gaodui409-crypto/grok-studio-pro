@@ -3,10 +3,7 @@ export class ObjectUrlRegistry {
   private readonly createUrl: (blob: Blob) => string;
   private readonly revokeUrl: (url: string) => void;
 
-  constructor(
-    createUrl: (blob: Blob) => string,
-    revokeUrl: (url: string) => void,
-  ) {
+  constructor(createUrl: (blob: Blob) => string, revokeUrl: (url: string) => void) {
     this.createUrl = createUrl;
     this.revokeUrl = revokeUrl;
   }

@@ -17,10 +17,9 @@ test("returns the first output image after success", async () => {
 
 test("rejects known terminal failure states", async () => {
   await assert.rejects(
-    pollModelScopeTask(
-      async () => ({ task_status: "CANCELLED", errors: "quota" }),
-      { sleep: noDelay },
-    ),
+    pollModelScopeTask(async () => ({ task_status: "CANCELLED", errors: "quota" }), {
+      sleep: noDelay,
+    }),
     /CANCELLED.*quota/,
   );
 });

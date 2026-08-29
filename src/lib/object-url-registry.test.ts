@@ -4,7 +4,10 @@ import { ObjectUrlRegistry } from "./object-url-registry.ts";
 
 test("reuses an existing object URL for the same item", () => {
   let created = 0;
-  const registry = new ObjectUrlRegistry(() => `blob:${++created}`, () => {});
+  const registry = new ObjectUrlRegistry(
+    () => `blob:${++created}`,
+    () => {},
+  );
   const blob = new Blob(["a"]);
   assert.equal(registry.register("one", blob), "blob:1");
   assert.equal(registry.register("one", blob), "blob:1");

@@ -23,6 +23,7 @@
 ### Task 1: Provider Contract and Registry
 
 **Files:**
+
 - Create: `src/lib/providers/types.ts`
 - Create: `src/lib/providers/registry.ts`
 - Test: `src/lib/providers/registry.test.ts`
@@ -87,6 +88,7 @@ Expected: all registry tests pass.
 ### Task 2: Extract Current Image Transports
 
 **Files:**
+
 - Create: `src/lib/providers/xai.ts`
 - Create: `src/lib/providers/xai-client.ts`
 - Create: `src/lib/providers/modelscope.ts`
@@ -108,7 +110,7 @@ export type { GeneratedImage, ImageEditParams, ImageGenParams } from "./provider
 Create `xai-client.ts` with the current checked JSON request logic, exported as:
 
 ```ts
-export async function xaiRequest<T>(path: string, init: RequestInit): Promise<T>
+export async function xaiRequest<T>(path: string, init: RequestInit): Promise<T>;
 ```
 
 Create `xai.ts` exporting `xaiImageProvider`. Preserve the current `/v1/images/generations` and `/v1/images/edits` payloads, authorization, response normalization, model selection, and abort signals. The adapter has `id: "xai"`, `label: "xAI/NewAPI"`, and both image methods.
@@ -156,6 +158,7 @@ Expected: registry tests and the existing 21 tests pass with zero failures.
 ### Task 3: Compatibility Verification
 
 **Files:**
+
 - Modify only files required by type/build feedback.
 
 - [x] **Step 1: Run TypeScript**

@@ -1,5 +1,13 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { ImageIcon, Wand2, Film, Sparkles, Settings as SettingsIcon, Images, BookOpen } from "lucide-react";
+import {
+  ImageIcon,
+  Wand2,
+  Film,
+  Sparkles,
+  Settings as SettingsIcon,
+  Images,
+  BookOpen,
+} from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -24,7 +32,8 @@ const items = [
 
 export function AppSidebar() {
   const currentPath = useRouterState({ select: (r) => r.location.pathname });
-  const isActive = (path: string) => (path === "/" ? currentPath === "/" : currentPath.startsWith(path));
+  const isActive = (path: string) =>
+    path === "/" ? currentPath === "/" : currentPath.startsWith(path);
 
   return (
     <Sidebar collapsible="icon">
@@ -35,7 +44,9 @@ export function AppSidebar() {
           </div>
           <div className="flex flex-col leading-tight group-data-[collapsible=icon]:hidden">
             <span className="font-display text-base font-semibold tracking-tight">Grok Studio</span>
-            <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">xAI Imagine</span>
+            <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
+              xAI Imagine
+            </span>
           </div>
         </Link>
       </SidebarHeader>

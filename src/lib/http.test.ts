@@ -17,10 +17,7 @@ test("extracts a nested JSON provider error", async () => {
 });
 
 test("falls back to HTTP status for an empty body", async () => {
-  assert.equal(
-    await responseErrorMessage(new Response(null, { status: 503 })),
-    "HTTP 503",
-  );
+  assert.equal(await responseErrorMessage(new Response(null, { status: 503 })), "HTTP 503");
 });
 
 test("checked blob fetch rejects non-2xx responses", async () => {

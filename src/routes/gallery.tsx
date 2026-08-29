@@ -1,24 +1,53 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Images, Trash2, Download, Copy, Maximize2, CheckSquare, Square, AlertTriangle, Play, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  Images,
+  Trash2,
+  Download,
+  Copy,
+  Maximize2,
+  CheckSquare,
+  Square,
+  AlertTriangle,
+  Play,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import { toast } from "sonner";
 import JSZip from "jszip";
 import { saveAs } from "file-saver";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Progress } from "@/components/ui/progress";
 import { PageHeader } from "@/components/page-header";
 import {
-  listGallery, getGalleryItem, deleteGalleryItems, clearGallery,
-  getStorageEstimate, formatBytes, type GalleryMeta,
+  listGallery,
+  getGalleryItem,
+  deleteGalleryItems,
+  clearGallery,
+  getStorageEstimate,
+  formatBytes,
+  type GalleryMeta,
 } from "@/lib/gallery-db";
 import { cn } from "@/lib/utils";
 import { ObjectUrlRegistry } from "@/lib/object-url-registry";
@@ -94,19 +123,29 @@ function GalleryPage() {
 
   useEffect(() => () => urlRegistry.dispose(), [urlRegistry]);
 
-  const scenes = useMemo(() => Array.from(new Set(items.map((i) => i.sceneName).filter(Boolean))) as string[], [items]);
-  const chars = useMemo(() => Array.from(new Set(items.map((i) => i.character).filter(Boolean))) as string[], [items]);
+  const scenes = useMemo(
+    () => Array.from(new Set(items.map((i) => i.sceneName).filter(Boolean))) as string[],
+    [items],
+  );
+  const chars = useMemo(
+    () => Array.from(new Set(items.map((i) => i.character).filter(Boolean))) as string[],
+    [items],
+  );
 
   const typeOf = (i: GalleryMeta): "image" | "video" =>
     i.type ?? (i.mimeType?.startsWith("video/") ? "video" : "image");
 
-  const filtered = useMemo(() => items.filter((i) => {
-    if (filterScene !== "all" && i.sceneName !== filterScene) return false;
-    if (filterChar !== "all" && i.character !== filterChar) return false;
-    if (filterType !== "all" && typeOf(i) !== filterType) return false;
-    if (search.trim() && !i.prompt.toLowerCase().includes(search.toLowerCase())) return false;
-    return true;
-  }), [items, filterScene, filterChar, filterType, search]);
+  const filtered = useMemo(
+    () =>
+      items.filter((i) => {
+        if (filterScene !== "all" && i.sceneName !== filterScene) return false;
+        if (filterChar !== "all" && i.character !== filterChar) return false;
+        if (filterType !== "all" && typeOf(i) !== filterType) return false;
+        if (search.trim() && !i.prompt.toLowerCase().includes(search.toLowerCase())) return false;
+        return true;
+      }),
+    [items, filterScene, filterChar, filterType, search],
+  );
 
   const allSelected = filtered.length > 0 && filtered.every((i) => selected.has(i.id));
   const toggleAll = () => {
@@ -115,7 +154,8 @@ function GalleryPage() {
   };
   const toggleOne = (id: string) => {
     const next = new Set(selected);
-    if (next.has(id)) next.delete(id); else next.add(id);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
     setSelected(next);
   };
 
@@ -145,7 +185,7 @@ function GalleryPage() {
       const full = await getGalleryItem(ids[i]);
       if (full) {
         const ext = extOf(full.mimeType, full.type);
-        const folder = full.type === "video" ? "videos" : (full.sceneName || "images");
+        const folder = full.type === "video" ? "videos" : full.sceneName || "images";
         const safe = folder.replace(/[^\w\u4e00-\u9fa5-]/g, "_");
         zip.file(`${safe}/${full.id}.${ext}`, full.blob);
       }
@@ -175,11 +215,14 @@ function GalleryPage() {
   const previewUrl = previewItem ? urlCache[previewItem.id] : null;
   const previewType = previewItem ? typeOf(previewItem) : "image";
 
-  const navigatePreview = useCallback((dir: -1 | 1) => {
-    if (previewIndex < 0 || !filtered.length) return;
-    const next = (previewIndex + dir + filtered.length) % filtered.length;
-    setPreviewId(filtered[next].id);
-  }, [previewIndex, filtered]);
+  const navigatePreview = useCallback(
+    (dir: -1 | 1) => {
+      if (previewIndex < 0 || !filtered.length) return;
+      const next = (previewIndex + dir + filtered.length) % filtered.length;
+      setPreviewId(filtered[next].id);
+    },
+    [previewIndex, filtered],
+  );
 
   useEffect(() => {
     if (!previewId) return;
@@ -215,7 +258,9 @@ function GalleryPage() {
         <div className="space-y-1">
           <Label className="text-xs uppercase tracking-wider text-muted-foreground">类型</Label>
           <Select value={filterType} onValueChange={setFilterType}>
-            <SelectTrigger className="w-28"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-28">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">全部</SelectItem>
               <SelectItem value="image">图片</SelectItem>
@@ -226,40 +271,67 @@ function GalleryPage() {
         <div className="space-y-1">
           <Label className="text-xs uppercase tracking-wider text-muted-foreground">场景</Label>
           <Select value={filterScene} onValueChange={setFilterScene}>
-            <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-36">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">全部场景</SelectItem>
-              {scenes.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              {scenes.map((s) => (
+                <SelectItem key={s} value={s}>
+                  {s}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
         <div className="space-y-1">
           <Label className="text-xs uppercase tracking-wider text-muted-foreground">角色</Label>
           <Select value={filterChar} onValueChange={setFilterChar}>
-            <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-36">
+              <SelectValue />
+            </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">全部角色</SelectItem>
-              {chars.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+              {chars.map((c) => (
+                <SelectItem key={c} value={c}>
+                  {c}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
         <div className="min-w-[180px] flex-1 space-y-1">
-          <Label className="text-xs uppercase tracking-wider text-muted-foreground">搜索提示词</Label>
-          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="关键词…" className="h-9" />
+          <Label className="text-xs uppercase tracking-wider text-muted-foreground">
+            搜索提示词
+          </Label>
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="关键词…"
+            className="h-9"
+          />
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <Button variant="ghost" size="sm" onClick={toggleAll}>
-            {allSelected ? <CheckSquare className="mr-1 h-4 w-4" /> : <Square className="mr-1 h-4 w-4" />}
+            {allSelected ? (
+              <CheckSquare className="mr-1 h-4 w-4" />
+            ) : (
+              <Square className="mr-1 h-4 w-4" />
+            )}
             {allSelected ? "取消全选" : "全选"}
           </Button>
           <Button
-            size="sm" variant="secondary" disabled={!selected.size || zipping}
+            size="sm"
+            variant="secondary"
+            disabled={!selected.size || zipping}
             onClick={downloadSelectedZip}
           >
             <Download className="mr-1 h-4 w-4" /> 打包下载 ({selected.size})
           </Button>
           <Button
-            size="sm" variant="ghost" disabled={!selected.size}
+            size="sm"
+            variant="ghost"
+            disabled={!selected.size}
             onClick={deleteSelected}
             className="text-destructive hover:text-destructive"
           >
@@ -281,7 +353,12 @@ function GalleryPage() {
               <AlertDialogFooter>
                 <AlertDialogCancel>取消</AlertDialogCancel>
                 <AlertDialogAction
-                  onClick={async () => { await clearGallery(); setSelected(new Set()); refresh(); toast.success("画廊已清空"); }}
+                  onClick={async () => {
+                    await clearGallery();
+                    setSelected(new Set());
+                    refresh();
+                    toast.success("画廊已清空");
+                  }}
                 >
                   确认清空
                 </AlertDialogAction>
@@ -293,7 +370,10 @@ function GalleryPage() {
 
       {zipping && (
         <div className="mb-4 space-y-2 rounded-xl border border-border/60 bg-card p-3 text-xs">
-          <div className="flex justify-between"><span>打包中…</span><span className="font-mono">{zipProgress}%</span></div>
+          <div className="flex justify-between">
+            <span>打包中…</span>
+            <span className="font-mono">{zipProgress}%</span>
+          </div>
           <Progress value={zipProgress} />
         </div>
       )}
@@ -320,7 +400,11 @@ function GalleryPage() {
                   onClick={() => toggleOne(it.id)}
                   className="absolute left-2 top-2 z-10 rounded-md bg-background/80 p-1 backdrop-blur"
                 >
-                  {isSel ? <CheckSquare className="h-4 w-4 text-primary-glow" /> : <Square className="h-4 w-4" />}
+                  {isSel ? (
+                    <CheckSquare className="h-4 w-4 text-primary-glow" />
+                  ) : (
+                    <Square className="h-4 w-4" />
+                  )}
                 </button>
                 {t === "video" && (
                   <span className="absolute right-2 top-2 z-10 rounded-md bg-background/80 px-1.5 py-0.5 text-[10px] font-mono backdrop-blur">
@@ -347,7 +431,12 @@ function GalleryPage() {
                       </div>
                     </div>
                   ) : (
-                    <img src={url} alt={it.prompt} className="aspect-square w-full object-cover" loading="lazy" />
+                    <img
+                      src={url}
+                      alt={it.prompt}
+                      className="aspect-square w-full object-cover"
+                      loading="lazy"
+                    />
                   )
                 ) : (
                   <div className="aspect-square w-full animate-pulse bg-surface" />
@@ -365,18 +454,38 @@ function GalleryPage() {
                   <p className="line-clamp-2 text-foreground/80">{it.prompt}</p>
                 </div>
                 <div className="absolute inset-x-0 bottom-0 flex justify-end gap-1 bg-gradient-to-t from-background/95 to-transparent p-2 opacity-0 transition group-hover:opacity-100">
-                  <Button size="icon" variant="secondary" className="h-7 w-7" onClick={() => openPreview(it.id)}>
+                  <Button
+                    size="icon"
+                    variant="secondary"
+                    className="h-7 w-7"
+                    onClick={() => openPreview(it.id)}
+                  >
                     <Maximize2 className="h-3.5 w-3.5" />
                   </Button>
-                  <Button size="icon" variant="secondary" className="h-7 w-7" onClick={() => copyPrompt(it.prompt)}>
+                  <Button
+                    size="icon"
+                    variant="secondary"
+                    className="h-7 w-7"
+                    onClick={() => copyPrompt(it.prompt)}
+                  >
                     <Copy className="h-3.5 w-3.5" />
                   </Button>
-                  <Button size="icon" variant="secondary" className="h-7 w-7" onClick={() => downloadOne(it.id)}>
+                  <Button
+                    size="icon"
+                    variant="secondary"
+                    className="h-7 w-7"
+                    onClick={() => downloadOne(it.id)}
+                  >
                     <Download className="h-3.5 w-3.5" />
                   </Button>
                   <Button
-                    size="icon" variant="secondary" className="h-7 w-7 text-destructive"
-                    onClick={async () => { await deleteGalleryItems([it.id]); refresh(); }}
+                    size="icon"
+                    variant="secondary"
+                    className="h-7 w-7 text-destructive"
+                    onClick={async () => {
+                      await deleteGalleryItems([it.id]);
+                      refresh();
+                    }}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </Button>
@@ -392,10 +501,19 @@ function GalleryPage() {
           <DialogTitle className="sr-only">预览</DialogTitle>
           <div className="relative">
             {previewUrl && previewType === "image" && (
-              <img src={previewUrl} alt="预览" className="max-h-[85vh] w-full rounded-lg object-contain" />
+              <img
+                src={previewUrl}
+                alt="预览"
+                className="max-h-[85vh] w-full rounded-lg object-contain"
+              />
             )}
             {previewUrl && previewType === "video" && (
-              <video src={previewUrl} controls autoPlay className="max-h-[85vh] w-full rounded-lg" />
+              <video
+                src={previewUrl}
+                controls
+                autoPlay
+                className="max-h-[85vh] w-full rounded-lg"
+              />
             )}
             {filtered.length > 1 && (
               <>
@@ -432,13 +550,15 @@ function GalleryPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>保留</AlertDialogCancel>
-            <AlertDialogAction onClick={async () => {
-              await deleteGalleryItems(Array.from(selected));
-              setSelected(new Set());
-              setShowCleanupAfter(false);
-              refresh();
-              toast.success("已清除已下载内容");
-            }}>
+            <AlertDialogAction
+              onClick={async () => {
+                await deleteGalleryItems(Array.from(selected));
+                setSelected(new Set());
+                setShowCleanupAfter(false);
+                refresh();
+                toast.success("已清除已下载内容");
+              }}
+            >
               清除
             </AlertDialogAction>
           </AlertDialogFooter>
