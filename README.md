@@ -20,7 +20,6 @@ Grok Studio Pro 是一个运行在浏览器里的 AI 图片、视频工作台。
 | -------------------------- | :----: | :----: | :--: | ------------------------------------------------------------------- |
 | xAI / NewAPI               |   是   |   是   |  是  | 需要 API Key；Base URL 可填 xAI 官方地址或兼容的 NewAPI 中转        |
 | ModelScope                 |   是   |   否   |  否  | 需要 ModelScope Token，固定使用 `Tongyi-MAI/Z-Image-Turbo`          |
-| Hugging Face               |   是   |   否   |  否  | 需要 HF Token，模型可自定义                                         |
 | AI Horde                   |   是   |   否   |  否  | 可留空 Key 使用匿名队列；匿名任务优先级较低                         |
 | Pollinations               |   是   |   否   |  否  | 需要 API Key / Pollen 额度，默认模型为 `flux`                       |
 | PixAI 官方 API             |   是   |   否   |  否  | 普通用户需申请 API Key 并等待审核，会员可直接获取；公开免费额度未知 |
@@ -82,7 +81,6 @@ bun run dev
 
 - xAI / NewAPI：填写 API Key 和 API 代理地址。官方地址是 `https://api.x.ai`；NewAPI 中转必须兼容项目使用的 `/v1/images/*`、`/v1/videos/*` 和 `/v1/chat/completions` 路径。
 - ModelScope：填写 ModelScope Access Token。该渠道使用异步任务，排队时需等待轮询完成。
-- Hugging Face：填写 HF Token 和模型 ID，例如 `Tongyi-MAI/Z-Image-Turbo`。
 - AI Horde：Key 可以留空，程序会使用匿名 Key `0000000000`。如果有个人 Key，填入后可获得更高的队列优先级。
 - Pollinations：填写 Pollinations API Key 和模型名。该服务按 API Key / Pollen 额度运行，不应当作无限免费渠道。
 - PixAI 官方 API：普通用户需申请 PixAI v2 API Key 并等待审核，会员可直接获取；公开免费额度未知。填写 API Key 和模型版本 ID。默认模型为 Tsubaki.2（`1983308862240288769`），也可选择 Haruka v2（`1861558740588989558`）或 Hoshino v2（`1954632828118619567`）。该渠道只支持文生图，多张图片会逐张提交；项目的 `2k` 档会映射到 PixAI 支持的 `1.5k`。PixAI 不支持通用选项中的 `2:1`、`1:2` 和 `auto`，选择这些比例时会在发包前给出提示。
@@ -106,7 +104,7 @@ Key 和 Token 仅保存在当前浏览器的 `localStorage` 中。发起生成�
 3. xAI / NewAPI 可在页面中选择图片模型；其他渠道使用设置页里的固定或自定义模型。
 4. 点击“生成图片”。完成后结果会自动保存到画廊。
 
-文生图是 AI Horde、Pollinations、PixAI 官方 API、PixAI 网页 Token、ModelScope 和 Hugging Face 的主要使用入口。AI Horde 和 PixAI 任务可能在队列中等待，这通常不是程序故障。
+文生图是 AI Horde、Pollinations、PixAI 官方 API、PixAI 网页 Token 和 ModelScope 的主要使用入口。AI Horde 和 PixAI 任务可能在队列中等待，这通常不是程序故障。
 
 ### 4. 图生图和多图融合
 

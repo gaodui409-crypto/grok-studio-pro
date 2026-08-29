@@ -33,10 +33,7 @@ function normalizeImage(raw: RawImage): GeneratedImage {
 
 async function generateImages(p: ImageGenParams): Promise<GeneratedImage[]> {
   const settings = loadSettings();
-  const model = resolveImageModel("xai", p.model, {
-    xai: settings.imageModel,
-    hf: settings.hfModel || "Tongyi-MAI/Z-Image-Turbo",
-  });
+  const model = resolveImageModel("xai", p.model, { xai: settings.imageModel });
   const data = await xaiRequest<{ data: RawImage[] }>("/v1/images/generations", {
     method: "POST",
     signal: p.signal,

@@ -11,7 +11,7 @@ import {
 test("catalogs every configured image provider", () => {
   assert.deepEqual(
     PROVIDERS.map((provider) => provider.id),
-    ["xai", "modelscope", "hf", "aihorde", "pollinations", "pixai", "pixai-web", "pixai-pool"],
+    ["xai", "modelscope", "aihorde", "pollinations", "pixai", "pixai-web", "pixai-pool"],
   );
 });
 
@@ -44,7 +44,7 @@ test("defines persisted defaults for the new provider credentials", () => {
   assert.equal(defaultSettings.pixaiPoolBaseUrl, "https://imgapi.qianyimwl.top");
 });
 
-test("fills PixAI web defaults when loading legacy saved settings", () => {
+test("falls back to xAI when a removed provider was saved", () => {
   const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
   const originalLocalStorage = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
 
@@ -60,8 +60,8 @@ test("fills PixAI web defaults when loading legacy saved settings", () => {
 
   try {
     const settings = loadSettings();
-    assert.equal(settings.provider, "hf");
-    assert.equal(settings.hfToken, "legacy-token");
+    // "hf" was removed from PROVIDER_FEATURES, so loadSettings must not keep it selected.
+    assert.equal(settings.provider, "xai");
     assert.equal(settings.concurrency, 2);
     assert.equal(settings.pixaiWebToken, "");
     assert.equal(settings.pixaiWebModelId, "");

@@ -10,7 +10,6 @@ export const VIDEO_MODELS = [
 export type ProviderId =
   | "xai"
   | "modelscope"
-  | "hf"
   | "aihorde"
   | "pollinations"
   | "pixai"
@@ -28,7 +27,6 @@ export const PROVIDERS: { id: ProviderId; label: string; desc: string }[] = [
     label: "魔搭 ModelScope（免费）",
     desc: "Tongyi-MAI/Z-Image-Turbo，2000/天，仅文生图。",
   },
-  { id: "hf", label: "Hugging Face", desc: "HF Inference API，免费用户约 80 次/天，仅文生图。" },
   {
     id: "aihorde",
     label: "AI Horde（社区算力）",
@@ -56,13 +54,10 @@ export const PROVIDERS: { id: ProviderId; label: string; desc: string }[] = [
   },
 ];
 
-export const HF_MODEL_PRESETS = ["Tongyi-MAI/Z-Image-Turbo", "black-forest-labs/FLUX.1-Krea-dev"];
-
 export const PROVIDER_FEATURES: Record<ProviderId, { t2i: boolean; i2i: boolean; video: boolean }> =
   {
     xai: { t2i: true, i2i: true, video: true },
     modelscope: { t2i: true, i2i: false, video: false },
-    hf: { t2i: true, i2i: false, video: false },
     aihorde: { t2i: true, i2i: false, video: false },
     pollinations: { t2i: true, i2i: false, video: false },
     pixai: { t2i: true, i2i: false, video: false },
@@ -88,9 +83,6 @@ export type Settings = {
   videoModel: string;
   // ModelScope
   modelscopeToken: string;
-  // Hugging Face
-  hfToken: string;
-  hfModel: string;
   // AI Horde
   aiHordeApiKey: string;
   // Pollinations
@@ -119,8 +111,6 @@ export const defaultSettings: Settings = {
   imageModel: "grok-imagine-image-pro",
   videoModel: "grok-imagine-video",
   modelscopeToken: "",
-  hfToken: "",
-  hfModel: "Tongyi-MAI/Z-Image-Turbo",
   aiHordeApiKey: "",
   pollinationsApiKey: "",
   pollinationsModel: "flux",
@@ -140,9 +130,6 @@ export function providerSetupIssue(settings: Settings): string | null {
   }
   if (settings.provider === "modelscope") {
     return settings.modelscopeToken ? null : "ModelScope Token";
-  }
-  if (settings.provider === "hf") {
-    return settings.hfToken ? null : "Hugging Face Token";
   }
   if (settings.provider === "pollinations") {
     return settings.pollinationsApiKey.trim() ? null : "Pollinations API Key";

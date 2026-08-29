@@ -28,7 +28,7 @@ import {
   VideoModelSelect,
 } from "@/components/param-selects";
 import { useSettings } from "@/hooks/use-settings";
-import { PROVIDERS, HF_MODEL_PRESETS, PIXAI_MODEL_PRESETS, type ProviderId } from "@/lib/settings";
+import { PROVIDERS, PIXAI_MODEL_PRESETS, type ProviderId } from "@/lib/settings";
 import {
   Select,
   SelectContent,
@@ -177,54 +177,6 @@ function SettingsPage() {
               。 固定使用 Tongyi-MAI/Z-Image-Turbo（异步）。免费额度 2000/天，并发 ≤3。
             </p>
           </div>
-        )}
-
-        {draft.provider === "hf" && (
-          <>
-            <div className="space-y-2">
-              <Label>Hugging Face Token</Label>
-              <Input
-                type={showKey ? "text" : "password"}
-                value={draft.hfToken}
-                onChange={(e) => setDraft({ ...draft, hfToken: e.target.value })}
-                placeholder="hf_..."
-                className="font-mono"
-              />
-              <p className="text-xs text-muted-foreground">
-                获取地址：
-                <a
-                  href="https://huggingface.co/settings/tokens"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-primary-glow hover:underline"
-                >
-                  huggingface.co/settings/tokens
-                </a>
-                。免费用户约 80 次/天。
-              </p>
-            </div>
-            <div className="space-y-2">
-              <Label>HF 模型</Label>
-              <Input
-                value={draft.hfModel}
-                onChange={(e) => setDraft({ ...draft, hfModel: e.target.value })}
-                placeholder="Tongyi-MAI/Z-Image-Turbo"
-                className="font-mono"
-              />
-              <div className="flex flex-wrap gap-1.5">
-                {HF_MODEL_PRESETS.map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => setDraft({ ...draft, hfModel: m })}
-                    className="rounded-full border border-border/60 bg-surface px-2.5 py-1 text-xs hover:border-primary/60"
-                  >
-                    {m}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </>
         )}
 
         {draft.provider === "aihorde" && (

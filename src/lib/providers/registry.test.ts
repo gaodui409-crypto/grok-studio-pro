@@ -24,14 +24,14 @@ function stubAdapter(id: ProviderId, label: string, supportsEditing = false): Im
 
 const xai = stubAdapter("xai", "xAI/NewAPI", true);
 const modelscope = stubAdapter("modelscope", "魔搭 ModelScope");
-const hf = stubAdapter("hf", "Hugging Face");
+const aihorde = stubAdapter("aihorde", "AI Horde");
 
 test("resolves every registered image provider", () => {
-  const registry = createImageProviderRegistry([xai, modelscope, hf]);
+  const registry = createImageProviderRegistry([xai, modelscope, aihorde]);
 
   assert.equal(registry.get("xai"), xai);
   assert.equal(registry.get("modelscope"), modelscope);
-  assert.equal(registry.get("hf"), hf);
+  assert.equal(registry.get("aihorde"), aihorde);
 });
 
 test("rejects an unregistered image provider", () => {
@@ -47,13 +47,13 @@ test("returns an adapter that supports image editing", () => {
 });
 
 test("reports the selected provider when image editing is unsupported", () => {
-  const registry = createImageProviderRegistry([modelscope, hf]);
+  const registry = createImageProviderRegistry([modelscope, aihorde]);
 
   assert.throws(
     () => registry.requireImageEditing("modelscope"),
     /当前来源（魔搭 ModelScope）不支持图生图/,
   );
-  assert.throws(() => registry.requireImageEditing("hf"), /当前来源（Hugging Face）不支持图生图/);
+  assert.throws(() => registry.requireImageEditing("aihorde"), /当前来源（AI Horde）不支持图生图/);
 });
 
 test("rejects duplicate provider registrations", () => {
