@@ -1,4 +1,4 @@
-import { loadSettings, type ProviderId } from "./settings.ts";
+import { loadSettings, type ProviderId, type Settings } from "./settings.ts";
 import { imageProviderRegistry } from "./providers/index.ts";
 import { xaiRequest } from "./providers/xai-client.ts";
 import type { ImageEditParams, ImageGenParams } from "./providers/types.ts";
@@ -45,13 +45,23 @@ export type VideoStatus = {
   error?: string;
 };
 
-export async function generateVideo(p: VideoGenParams): Promise<{ request_id: string }> {
+// Video and multimodal chat are xAI-only. Every entry point that reaches
+// xaiRequest for these features must go through here first — otherwise a stale
+// apiKey left in localStorage would silently fire at xAI while the UI shows a
+// different provider, and an empty key would report "配置 API Key" instead of
+// the real reason (the selected provider has no such feature).
+function requireXaiProvider(feature: string): Settings {
   const settings = loadSettings();
   if (settings.provider !== "xai") {
     throw new Error(
-      `当前来源（${providerLabel(settings.provider)}）不支持视频，请在设置中切换到 xAI / NewAPI。`,
+      `当前来源（${providerLabel(settings.provider)}）不支持${feature}，请在设置中切换到 xAI / NewAPI。`,
     );
   }
+  return settings;
+}
+
+export async function generateVideo(p: VideoGenParams): Promise<{ request_id: string }> {
+  const settings = requireXaiProvider("视频");
   const body: Record<string, unknown> = {
     model: p.model ?? settings.videoModel,
     prompt: p.prompt,
@@ -70,7 +80,7 @@ export async function generateVideo(p: VideoGenParams): Promise<{ request_id: st
 }
 
 export async function editVideo(p: VideoEditParams): Promise<{ request_id: string }> {
-  const settings = loadSettings();
+  const settings = requireXaiProvider("视频编辑");
   return xaiRequest("/v1/videos/edits", {
     method: "POST",
     body: JSON.stringify({
@@ -89,7 +99,7 @@ export type VideoExtendParams = {
 };
 
 export async function extendVideo(p: VideoExtendParams): Promise<{ request_id: string }> {
-  const settings = loadSettings();
+  const settings = requireXaiProvider("视频延长");
   return xaiRequest("/v1/videos/extensions", {
     method: "POST",
     body: JSON.stringify({
@@ -111,11 +121,14 @@ export async function chatCompletion(params: {
     role: "user" | "system" | "assistant";
     content: string | ChatMessageContent[];
   }[];
+  signal?: AbortSignal;
 }): Promise<string> {
+  requireXaiProvider("文字识别翻译");
   const data = await xaiRequest<{ choices: { message: { content: string } }[] }>(
     "/v1/chat/completions",
     {
       method: "POST",
+      signal: params.signal,
       body: JSON.stringify({
         model: params.model ?? "grok-4.20-0309-non-reasoning",
         messages: params.messages,
