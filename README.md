@@ -19,6 +19,7 @@ Grok Studio Pro 是一个运行在浏览器里的 AI 图片、视频工作台。
 | 渠道                       | 文生图 | 图生图 | 视频 | 配置和限制                                                          |
 | -------------------------- | :----: | :----: | :--: | ------------------------------------------------------------------- |
 | xAI / NewAPI               |   是   |   是   |  是  | 需要 API Key；Base URL 可填 xAI 官方地址或兼容的 NewAPI 中转        |
+| Gitee AI 模力方舟          |   是   |   否   |  否  | 需要免费体验访问令牌，每日 100 次，默认模型 `z-image-turbo`         |
 | ModelScope                 |   是   |   否   |  否  | 需要 ModelScope Token，固定使用 `Tongyi-MAI/Z-Image-Turbo`          |
 | AI Horde                   |   是   |   否   |  否  | 可留空 Key 使用匿名队列；匿名任务优先级较低                         |
 | Pollinations               |   是   |   否   |  否  | 需要 API Key / Pollen 额度，默认模型为 `flux`                       |
@@ -80,6 +81,7 @@ bun run dev
 各渠道的配置方式：
 
 - xAI / NewAPI：填写 API Key 和 API 代理地址。官方地址是 `https://api.x.ai`；NewAPI 中转必须兼容项目使用的 `/v1/images/*`、`/v1/videos/*` 和 `/v1/chat/completions` 路径。
+- Gitee AI 模力方舟：填写「免费体验访问令牌」和模型名。注册需绑定 +86 手机号，注册后系统会自动创建令牌，在模型广场任意模型页面的「在线体验 → API」里可以取到。每日 100 次免费额度，次日刷新。接口兼容 OpenAI 格式（`POST ai.gitee.com/v1/images/generations`），已实测 CORS 对浏览器放开，无需后端转发。单边分辨率上限 2048，超出会自动收敛。
 - ModelScope：填写 ModelScope Access Token。该渠道使用异步任务，排队时需等待轮询完成。
 - AI Horde：Key 可以留空，程序会使用匿名 Key `0000000000`。如果有个人 Key，填入后可获得更高的队列优先级。
 - Pollinations：填写 Pollinations API Key 和模型名。该服务按 API Key / Pollen 额度运行，不应当作无限免费渠道。
@@ -104,7 +106,7 @@ Key 和 Token 仅保存在当前浏览器的 `localStorage` 中。发起生成�
 3. xAI / NewAPI 可在页面中选择图片模型；其他渠道使用设置页里的固定或自定义模型。
 4. 点击“生成图片”。完成后结果会自动保存到画廊。
 
-文生图是 AI Horde、Pollinations、PixAI 官方 API、PixAI 网页 Token 和 ModelScope 的主要使用入口。AI Horde 和 PixAI 任务可能在队列中等待，这通常不是程序故障。
+文生图是 Gitee AI、AI Horde、Pollinations、PixAI 官方 API、PixAI 网页 Token 和 ModelScope 的主要使用入口。AI Horde 和 PixAI 任务可能在队列中等待，这通常不是程序故障。
 
 ### 4. 图生图和多图融合
 

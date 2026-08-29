@@ -65,6 +65,7 @@ test("registers every production image provider", () => {
     assert.equal(imageProviderRegistry.get(provider.id).id, provider.id);
   }
 
+  assert.equal(imageProviderRegistry.get("gitee" as ProviderId).label, "Gitee AI 模力方舟");
   assert.equal(imageProviderRegistry.get("aihorde" as ProviderId).label, "AI Horde");
   assert.equal(imageProviderRegistry.get("pollinations" as ProviderId).label, "Pollinations");
   assert.equal(imageProviderRegistry.get("pixai" as ProviderId).label, "PixAI 官方 API");

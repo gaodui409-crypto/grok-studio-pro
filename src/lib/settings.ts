@@ -9,6 +9,7 @@ export const VIDEO_MODELS = [
 
 export type ProviderId =
   | "xai"
+  | "gitee"
   | "modelscope"
   | "aihorde"
   | "pollinations"
@@ -21,6 +22,11 @@ export const PROVIDERS: { id: ProviderId; label: string; desc: string }[] = [
     id: "xai",
     label: "xAI / NewAPI 中转",
     desc: "支持文生图、图生图、视频。可用于官方 api.x.ai 或兼容的 NewAPI 中转。",
+  },
+  {
+    id: "gitee",
+    label: "Gitee AI 模力方舟（免费）",
+    desc: "每日 100 次免费额度，OpenAI 兼容接口，浏览器可直连，仅文生图。",
   },
   {
     id: "modelscope",
@@ -57,6 +63,7 @@ export const PROVIDERS: { id: ProviderId; label: string; desc: string }[] = [
 export const PROVIDER_FEATURES: Record<ProviderId, { t2i: boolean; i2i: boolean; video: boolean }> =
   {
     xai: { t2i: true, i2i: true, video: true },
+    gitee: { t2i: true, i2i: false, video: false },
     modelscope: { t2i: true, i2i: false, video: false },
     aihorde: { t2i: true, i2i: false, video: false },
     pollinations: { t2i: true, i2i: false, video: false },
@@ -81,6 +88,9 @@ export type Settings = {
   baseUrl: string;
   imageModel: string;
   videoModel: string;
+  // Gitee AI
+  giteeApiKey: string;
+  giteeModel: string;
   // ModelScope
   modelscopeToken: string;
   // AI Horde
@@ -110,6 +120,8 @@ export const defaultSettings: Settings = {
   baseUrl: "https://api.x.ai",
   imageModel: "grok-imagine-image-pro",
   videoModel: "grok-imagine-video",
+  giteeApiKey: "",
+  giteeModel: "z-image-turbo",
   modelscopeToken: "",
   aiHordeApiKey: "",
   pollinationsApiKey: "",
@@ -127,6 +139,9 @@ export const defaultSettings: Settings = {
 export function providerSetupIssue(settings: Settings): string | null {
   if (settings.provider === "xai") {
     return settings.apiKey ? null : "xAI / NewAPI API Key";
+  }
+  if (settings.provider === "gitee") {
+    return settings.giteeApiKey.trim() ? null : "Gitee AI API Key";
   }
   if (settings.provider === "modelscope") {
     return settings.modelscopeToken ? null : "ModelScope Token";

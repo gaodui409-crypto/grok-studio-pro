@@ -1,4 +1,5 @@
 import { aiHordeImageProvider } from "./ai-horde.ts";
+import { giteeImageProvider } from "./gitee.ts";
 import { modelScopeImageProvider } from "./modelscope.ts";
 import { pixAiImageProvider } from "./pixai.ts";
 import { pixAiWebImageProvider } from "./pixai-web.ts";
@@ -9,6 +10,7 @@ import { xaiImageProvider } from "./xai.ts";
 
 export const imageProviderRegistry = createImageProviderRegistry([
   xaiImageProvider,
+  giteeImageProvider,
   modelScopeImageProvider,
   aiHordeImageProvider,
   pollinationsImageProvider,

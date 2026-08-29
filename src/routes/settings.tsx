@@ -154,6 +154,56 @@ function SettingsPage() {
           </>
         )}
 
+        {draft.provider === "gitee" && (
+          <>
+            <div className="space-y-2">
+              <Label>Gitee AI API Key</Label>
+              <div className="relative">
+                <Input
+                  type={showKey ? "text" : "password"}
+                  value={draft.giteeApiKey}
+                  onChange={(e) => setDraft({ ...draft, giteeApiKey: e.target.value })}
+                  placeholder="免费体验访问令牌"
+                  className="pr-10 font-mono"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowKey((v) => !v)}
+                  aria-label={showKey ? "隐藏 API Key" : "显示 API Key"}
+                  className="absolute right-0.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded text-muted-foreground hover:text-foreground"
+                >
+                  {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                获取地址：
+                <a
+                  href="https://ai.gitee.com"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-primary-glow hover:underline"
+                >
+                  ai.gitee.com
+                </a>
+                。注册需绑定 +86 手机号；注册后会自动创建「免费体验访问令牌」，在任意模型页面的
+                「在线体验 → API」里可以取到。每日 100 次免费额度，次日刷新。
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label>Gitee AI 模型</Label>
+              <Input
+                value={draft.giteeModel}
+                onChange={(e) => setDraft({ ...draft, giteeModel: e.target.value })}
+                placeholder="z-image-turbo"
+                className="font-mono"
+              />
+              <p className="text-xs text-muted-foreground">
+                接口兼容 OpenAI 格式，单边分辨率上限 2048，超出会被自动收敛到 2048。
+              </p>
+            </div>
+          </>
+        )}
+
         {draft.provider === "modelscope" && (
           <div className="space-y-2">
             <Label>ModelScope Token</Label>

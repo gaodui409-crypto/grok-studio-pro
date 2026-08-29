@@ -11,8 +11,17 @@ import {
 test("catalogs every configured image provider", () => {
   assert.deepEqual(
     PROVIDERS.map((provider) => provider.id),
-    ["xai", "modelscope", "aihorde", "pollinations", "pixai", "pixai-web", "pixai-pool"],
+    ["xai", "gitee", "modelscope", "aihorde", "pollinations", "pixai", "pixai-web", "pixai-pool"],
   );
+});
+
+test("describes Gitee AI free quota and browser reachability", () => {
+  const gitee = PROVIDERS.find((provider) => provider.id === "gitee");
+
+  assert.ok(gitee);
+  assert.match(gitee.desc, /每日 100 次/);
+  assert.match(gitee.desc, /浏览器可直连/);
+  assert.match(gitee.desc, /仅文生图/);
 });
 
 test("describes PixAI official API key availability", () => {
@@ -34,6 +43,8 @@ test("describes PixAI web token as an experimental text-to-image provider", () =
 });
 
 test("defines persisted defaults for the new provider credentials", () => {
+  assert.equal(defaultSettings.giteeApiKey, "");
+  assert.equal(defaultSettings.giteeModel, "z-image-turbo");
   assert.equal(defaultSettings.aiHordeApiKey, "");
   assert.equal(defaultSettings.pollinationsApiKey, "");
   assert.equal(defaultSettings.pollinationsModel, "flux");
@@ -77,6 +88,7 @@ test("falls back to xAI when a removed provider was saved", () => {
 });
 
 test("declares only working new transports as text-to-image capable", () => {
+  assert.deepEqual(PROVIDER_FEATURES.gitee, { t2i: true, i2i: false, video: false });
   assert.deepEqual(PROVIDER_FEATURES.aihorde, { t2i: true, i2i: false, video: false });
   assert.deepEqual(PROVIDER_FEATURES.pollinations, { t2i: true, i2i: false, video: false });
   assert.deepEqual(PROVIDER_FEATURES.pixai, { t2i: true, i2i: false, video: false });
@@ -94,6 +106,15 @@ test("declares only working new transports as text-to-image capable", () => {
 
 test("reports setup blockers without requiring an AI Horde key", () => {
   assert.equal(providerSetupIssue({ ...defaultSettings, provider: "aihorde" }), null);
+  assert.equal(providerSetupIssue({ ...defaultSettings, provider: "gitee" }), "Gitee AI API Key");
+  assert.equal(
+    providerSetupIssue({ ...defaultSettings, provider: "gitee", giteeApiKey: "   " }),
+    "Gitee AI API Key",
+  );
+  assert.equal(
+    providerSetupIssue({ ...defaultSettings, provider: "gitee", giteeApiKey: "gitee-key" }),
+    null,
+  );
   assert.equal(
     providerSetupIssue({ ...defaultSettings, provider: "pollinations" }),
     "Pollinations API Key",
