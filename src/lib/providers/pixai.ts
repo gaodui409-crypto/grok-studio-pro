@@ -1,5 +1,10 @@
 import { runPixAiGeneration } from "../pixai-client.ts";
-import { loadSettings, PIXAI_DEFAULT_MODEL_VERSION_ID } from "../settings.ts";
+import {
+  loadSettings,
+  nearestTier,
+  PIXAI_DEFAULT_MODEL_VERSION_ID,
+  type ResolutionTier,
+} from "../settings.ts";
 import type { ImageGenParams, ImageProviderAdapter } from "./types.ts";
 
 const PIXAI_ASPECT_RATIOS = new Set([
@@ -16,8 +21,13 @@ const PIXAI_ASPECT_RATIOS = new Set([
   "3:1",
 ]);
 
-export function pixAiSizeFromResolution(resolution: "1k" | "2k"): "1k" | "1.5k" {
-  return resolution === "2k" ? "1.5k" : "1k";
+// PixAI's v2 API only offers "1k" and "1.5k". Map the shared tier list onto the
+// nearer of the two — "2k" becomes "1.5k" (as before), and the small tiers
+// collapse to "1k" rather than being sent verbatim and rejected.
+const PIXAI_TIERS: readonly ResolutionTier[] = ["1k", "1.5k"];
+
+export function pixAiSizeFromResolution(resolution: ResolutionTier): "1k" | "1.5k" {
+  return nearestTier(resolution, PIXAI_TIERS) as "1k" | "1.5k";
 }
 
 export function pixAiAspectRatio(aspectRatio: string): string {

@@ -10,6 +10,8 @@ type AiHordeGenerationInput = {
   width: number;
   height: number;
   count: number;
+  /** Restrict the job to workers running this model. Omit for any worker. */
+  model?: string;
   signal?: AbortSignal;
 };
 
@@ -85,6 +87,8 @@ export async function runAiHordeGeneration(
         trusted_workers: false,
         r2: true,
         shared: false,
+        // The API takes a list; one entry is enough to pin a single model.
+        ...(input.model ? { models: [input.model] } : {}),
       }),
     }),
     "AI Horde",

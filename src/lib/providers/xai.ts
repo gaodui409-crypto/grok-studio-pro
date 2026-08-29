@@ -1,5 +1,5 @@
 import { resolveImageModel } from "../provider-runtime.ts";
-import { loadSettings } from "../settings.ts";
+import { loadSettings, nearestTier, type ResolutionTier } from "../settings.ts";
 import { xaiRequest } from "./xai-client.ts";
 import type {
   GeneratedImage,
@@ -31,9 +31,18 @@ function normalizeImage(raw: RawImage): GeneratedImage {
   };
 }
 
+// The xAI image API takes a tier name, and only knows "1k" and "2k". The shared
+// tier list is wider than that (small tiers exist for the free channels), so map
+// onto the nearest one xAI accepts instead of sending e.g. "512" and being refused.
+const XAI_TIERS: readonly ResolutionTier[] = ["1k", "2k"];
+
+export function xaiResolution(tier: ResolutionTier | undefined): "1k" | "2k" {
+  return nearestTier(tier ?? "1k", XAI_TIERS) as "1k" | "2k";
+}
+
 async function generateImages(p: ImageGenParams): Promise<GeneratedImage[]> {
   const settings = loadSettings();
-  const model = resolveImageModel("xai", p.model, { xai: settings.imageModel });
+  const model = resolveImageModel("xai", p.model, settings);
   const data = await xaiRequest<{ data: RawImage[] }>("/v1/images/generations", {
     method: "POST",
     signal: p.signal,
@@ -42,7 +51,7 @@ async function generateImages(p: ImageGenParams): Promise<GeneratedImage[]> {
       prompt: p.prompt,
       n: p.n ?? 1,
       aspect_ratio: p.aspect_ratio ?? "1:1",
-      resolution: p.resolution ?? "1k",
+      resolution: xaiResolution(p.resolution),
       response_format: "b64_json",
     }),
   });
@@ -55,7 +64,7 @@ async function editImages(p: ImageEditParams): Promise<GeneratedImage[]> {
     model: p.model ?? settings.imageModel,
     prompt: p.prompt,
     n: p.n ?? 1,
-    resolution: p.resolution ?? "1k",
+    resolution: xaiResolution(p.resolution),
     response_format: "b64_json",
   };
   if (p.images.length === 1) {

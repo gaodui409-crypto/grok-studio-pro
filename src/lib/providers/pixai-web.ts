@@ -1,10 +1,13 @@
 import { runPixAiWebGeneration } from "../pixai-web-client.ts";
-import { loadSettings } from "../settings.ts";
+import { loadSettings, tierEdge, type ResolutionTier } from "../settings.ts";
 import type { ImageGenParams, ImageProviderAdapter } from "./types.ts";
+
+// PixAI's web protocol maxes out at 1536 on the long edge.
+const PIXAI_WEB_MAX_EDGE = 1536;
 
 export function pixAiWebDimensions(
   aspectRatio: string,
-  resolution: "1k" | "2k",
+  resolution: ResolutionTier,
 ): { width: number; height: number } {
   const match = /^(\d+):(\d+)$/.exec(aspectRatio);
   if (!match) {
@@ -24,7 +27,7 @@ export function pixAiWebDimensions(
     );
   }
 
-  const longestSide = resolution === "2k" ? 1536 : 1024;
+  const longestSide = Math.min(tierEdge(resolution), PIXAI_WEB_MAX_EDGE);
   const rawShortSide =
     ratioWidth >= ratioHeight
       ? (longestSide * ratioHeight) / ratioWidth

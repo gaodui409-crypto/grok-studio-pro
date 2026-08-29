@@ -1,7 +1,8 @@
 import { assertResponseOk } from "../http.ts";
 import { pollModelScopeTask, type ModelScopeTaskStatus } from "../modelscope-polling.ts";
-import { MODELSCOPE_IMAGE_MODEL } from "../provider-runtime.ts";
-import { aspectToWH, loadSettings } from "../settings.ts";
+import { inferenceParams, resolveDimensions } from "../provider-catalog.ts";
+import { resolveImageModel } from "../provider-runtime.ts";
+import { loadSettings } from "../settings.ts";
 import type { GeneratedImage, ImageGenParams, ImageProviderAdapter } from "./types.ts";
 
 async function generateImages(p: ImageGenParams): Promise<GeneratedImage[]> {
@@ -10,7 +11,16 @@ async function generateImages(p: ImageGenParams): Promise<GeneratedImage[]> {
     throw new Error("请先在设置中配置 ModelScope Token");
   }
 
-  const { width, height } = aspectToWH(p.aspect_ratio ?? "1:1", p.resolution ?? "1k");
+  const model = resolveImageModel("modelscope", p.model, settings);
+  // Each model has its own edge ceiling (Z-Image-Turbo stops at 1664) and its own
+  // sampler settings — a Turbo model wants 9 steps and no guidance, SDXL wants
+  // ~30 and CFG 7.5. Sending one set to all of them was the old behaviour.
+  const { width, height } = resolveDimensions(
+    "modelscope",
+    model,
+    p.aspect_ratio ?? "1:1",
+    p.resolution ?? "1k",
+  );
   const baseUrl = "https://api-inference.modelscope.cn";
   const headers = {
     Authorization: `Bearer ${settings.modelscopeToken}`,
@@ -24,12 +34,11 @@ async function generateImages(p: ImageGenParams): Promise<GeneratedImage[]> {
       signal: p.signal,
       headers,
       body: JSON.stringify({
-        model: MODELSCOPE_IMAGE_MODEL,
+        model,
         prompt: p.prompt,
         width,
         height,
-        num_inference_steps: 9,
-        guidance_scale: 0.0,
+        ...inferenceParams("modelscope", model),
       }),
     });
     await assertResponseOk(start, "ModelScope");

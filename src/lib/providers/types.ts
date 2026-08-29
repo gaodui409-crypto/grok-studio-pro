@@ -1,10 +1,10 @@
-import type { ProviderId } from "../settings.ts";
+import type { ProviderId, ResolutionTier } from "../settings.ts";
 
 export type ImageGenParams = {
   prompt: string;
   n?: number;
   aspect_ratio?: string;
-  resolution?: "1k" | "2k";
+  resolution?: ResolutionTier;
   model?: string;
   signal?: AbortSignal;
 };
@@ -13,7 +13,7 @@ export type ImageEditParams = {
   prompt: string;
   images: string[];
   n?: number;
-  resolution?: "1k" | "2k";
+  resolution?: ResolutionTier;
   model?: string;
   signal?: AbortSignal;
 };

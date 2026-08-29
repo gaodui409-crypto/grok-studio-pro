@@ -9,7 +9,7 @@
 import { create } from "zustand";
 import type { GeneratedImage, VideoStatus } from "./xai";
 import type { CharacterPreset } from "./character-presets";
-import type { Settings } from "./settings";
+import type { ResolutionTier, Settings } from "./settings";
 import { getSettingsDefaultPatches } from "./settings-defaults";
 
 // ---------------- Text-to-image (/) ----------------
@@ -17,7 +17,7 @@ export type T2IState = {
   prompt: string;
   n: number;
   aspect: string;
-  resolution: "1k" | "2k";
+  resolution: ResolutionTier;
   model: string;
   loading: boolean;
   images: GeneratedImage[];
@@ -28,7 +28,7 @@ export type I2IState = {
   images: string[];
   prompt: string;
   n: number;
-  resolution: "1k" | "2k";
+  resolution: ResolutionTier;
   model: string;
   loading: boolean;
   results: GeneratedImage[];
@@ -72,7 +72,7 @@ export type FanartState = {
   mode: "single" | "multi";
   activeSceneId: string;
   aspect: string;
-  resolution: "1k" | "2k";
+  resolution: ResolutionTier;
   model: string;
   overrides: Record<string, string>;
   running: boolean;

@@ -15,6 +15,8 @@ type GiteeGenerationInput = {
   width: number;
   height: number;
   count: number;
+  /** Per-model sampler settings (steps, guidance). See provider-catalog.ts. */
+  params?: Record<string, number>;
   signal?: AbortSignal;
 };
 
@@ -32,7 +34,7 @@ export function clampGiteeEdge(value: number): number {
 }
 
 export function buildGiteeRequestBody(
-  input: Pick<GiteeGenerationInput, "prompt" | "model" | "width" | "height">,
+  input: Pick<GiteeGenerationInput, "prompt" | "model" | "width" | "height" | "params">,
 ): Record<string, unknown> {
   const width = clampGiteeEdge(input.width);
   const height = clampGiteeEdge(input.height);
@@ -44,7 +46,9 @@ export function buildGiteeRequestBody(
     size: `${width}x${height}`,
     width,
     height,
-    num_inference_steps: 9,
+    // Defaults to z-image-turbo's settings when the caller supplies none, which
+    // is what every request used to send unconditionally.
+    ...(input.params ?? { num_inference_steps: 9 }),
   };
 }
 
