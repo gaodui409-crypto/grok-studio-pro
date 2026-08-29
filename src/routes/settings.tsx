@@ -3,16 +3,15 @@ import { useEffect, useState } from "react";
 import {
   Settings as SettingsIcon,
   Save,
-  Eye,
-  EyeOff,
   Plus,
   Trash2,
   Pencil,
   Check,
   X,
   Users,
-  Cloud,
   AlertTriangle,
+  CheckCircle2,
+  Sliders,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -20,22 +19,20 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/page-header";
-import {
-  AspectRatioSelect,
-  ResolutionSelect,
-  ImageModelSelect,
-  VideoModelSelect,
-} from "@/components/param-selects";
+import { SecretInput } from "@/components/secret-input";
+import { AspectRatioSelect, ResolutionSelect, VideoModelSelect } from "@/components/param-selects";
 import { useSettings } from "@/hooks/use-settings";
-import { PROVIDERS, PIXAI_MODEL_PRESETS, type ProviderId } from "@/lib/settings";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  PROVIDERS,
+  PIXAI_MODEL_PRESETS,
+  PIXAI_WEB_MODEL_PRESETS,
+  providerSetupIssue,
+  type ProviderId,
+  type ResolutionTier,
+  type Settings,
+} from "@/lib/settings";
 import {
   BUILTIN_PRESETS,
   loadCustomPresets,
@@ -44,6 +41,7 @@ import {
   type CharacterPreset,
 } from "@/lib/character-presets";
 import { useAppStore } from "@/lib/app-store";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({
@@ -55,15 +53,303 @@ export const Route = createFileRoute("/settings")({
   component: SettingsPage,
 });
 
+type PanelProps = {
+  draft: Settings;
+  patch: (patch: Partial<Settings>) => void;
+};
+
+/** Small helper so every field block looks the same. */
+function Field({
+  label,
+  children,
+  hint,
+}: {
+  label: string;
+  children: React.ReactNode;
+  hint?: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-2">
+      <Label>{label}</Label>
+      {children}
+      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+    </div>
+  );
+}
+
+function Warning({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex gap-3 rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm">
+      <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+      <p className="text-foreground/90">{children}</p>
+    </div>
+  );
+}
+
+function ExternalLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <a href={href} target="_blank" rel="noreferrer" className="text-primary-glow hover:underline">
+      {children}
+    </a>
+  );
+}
+
+function XaiPanel({ draft, patch }: PanelProps) {
+  return (
+    <>
+      <Field
+        label="xAI API Key"
+        hint={
+          <>
+            官方：<ExternalLink href="https://console.x.ai">console.x.ai</ExternalLink>
+            ；也可填入 NewAPI 中转 Key。
+          </>
+        }
+      >
+        <SecretInput
+          value={draft.apiKey}
+          onChange={(apiKey) => patch({ apiKey })}
+          placeholder="xai-..."
+          label="xAI API Key"
+        />
+      </Field>
+      <Field
+        label="API 代理地址"
+        hint="默认 https://api.x.ai，可改为 NewAPI 等中转地址。请求路径会自动拼接 /v1/..."
+      >
+        <Input
+          value={draft.baseUrl}
+          onChange={(e) => patch({ baseUrl: e.target.value })}
+          placeholder="https://api.x.ai"
+          className="font-mono"
+        />
+      </Field>
+      <Field label="视频模型">
+        <VideoModelSelect
+          value={draft.videoModel}
+          onChange={(videoModel) => patch({ videoModel })}
+        />
+      </Field>
+    </>
+  );
+}
+
+function GiteePanel({ draft, patch }: PanelProps) {
+  return (
+    <Field
+      label="Gitee AI API Key"
+      hint={
+        <>
+          获取地址：<ExternalLink href="https://ai.gitee.com">ai.gitee.com</ExternalLink>
+          。注册需绑定 +86 手机号；注册后会自动创建「免费体验访问令牌」，在任意模型页面的 「在线体验
+          → API」里可以取到。
+        </>
+      }
+    >
+      <SecretInput
+        value={draft.giteeApiKey}
+        onChange={(giteeApiKey) => patch({ giteeApiKey })}
+        placeholder="免费体验访问令牌"
+        label="Gitee AI API Key"
+      />
+    </Field>
+  );
+}
+
+function ModelScopePanel({ draft, patch }: PanelProps) {
+  return (
+    <Field
+      label="ModelScope Token"
+      hint={
+        <>
+          获取地址：
+          <ExternalLink href="https://modelscope.cn/my/myaccesstoken">modelscope.cn</ExternalLink>
+          。浏览器直连会被 CORS 拦住（异步协议要用的 X-ModelScope-Async-Mode
+          不在允许头名单里），本地开发环境下才能正常工作。
+        </>
+      }
+    >
+      <SecretInput
+        value={draft.modelscopeToken}
+        onChange={(modelscopeToken) => patch({ modelscopeToken })}
+        placeholder="ms-..."
+        label="ModelScope Token"
+      />
+    </Field>
+  );
+}
+
+function AiHordePanel({ draft, patch }: PanelProps) {
+  return (
+    <Field
+      label="AI Horde API Key（可选）"
+      hint="留空使用匿名队列；个人 Key 可提高优先级。社区算力的等待时间和可用模型会变动。"
+    >
+      <SecretInput
+        value={draft.aiHordeApiKey}
+        onChange={(aiHordeApiKey) => patch({ aiHordeApiKey })}
+        placeholder="留空则使用匿名 Key 0000000000"
+        label="AI Horde API Key"
+      />
+    </Field>
+  );
+}
+
+function PollinationsPanel({ draft, patch }: PanelProps) {
+  return (
+    <>
+      <Field
+        label="Pollinations API Key"
+        hint="仅支持 GitHub 登录注册。免费额度不再每日刷新，只能做 Quest 任务赚取。"
+      >
+        <SecretInput
+          value={draft.pollinationsApiKey}
+          onChange={(pollinationsApiKey) => patch({ pollinationsApiKey })}
+          placeholder="pk_..."
+          label="Pollinations API Key"
+        />
+      </Field>
+      <Warning>
+        flux 不支持中文提示词，请改用英文。有内容审查，NSFW 会被拒绝。匿名请求会忽略 model
+        参数并返回占位图，因此模型列表只在配置 Key 后才可信。
+      </Warning>
+    </>
+  );
+}
+
+function PixaiPanel({ draft, patch }: PanelProps) {
+  return (
+    <>
+      <Field
+        label="PixAI API Key"
+        hint="普通用户需申请并等待审核，会员可直接获取；公开免费额度未知。请求直接发送到 api.pixai.art，不使用网页登录 Token。Key 只保存在当前浏览器。"
+      >
+        <SecretInput
+          value={draft.pixaiApiKey}
+          onChange={(pixaiApiKey) => patch({ pixaiApiKey })}
+          placeholder="PixAI v2 API Key"
+          label="PixAI API Key"
+        />
+      </Field>
+      <Field
+        label="PixAI 模型版本 ID"
+        hint="默认 Tsubaki.2。通用 2k 档会按 PixAI 协议转换为 1.5k；多张图片逐张提交。PixAI 不支持 2:1、1:2 和 auto 比例。"
+      >
+        <Input
+          value={draft.pixaiModelVersionId}
+          onChange={(e) => patch({ pixaiModelVersionId: e.target.value })}
+          placeholder="1983308862240288769"
+          className="font-mono"
+        />
+        <div className="flex flex-wrap gap-1.5 pt-1.5">
+          {PIXAI_MODEL_PRESETS.map((model) => (
+            <button
+              key={model.id}
+              type="button"
+              onClick={() => patch({ pixaiModelVersionId: model.id })}
+              className="rounded-full border border-border/60 bg-surface px-2.5 py-1 text-xs hover:border-primary/60"
+            >
+              {model.label}
+            </button>
+          ))}
+        </div>
+      </Field>
+    </>
+  );
+}
+
+function PixaiWebPanel({ draft, patch }: PanelProps) {
+  return (
+    <>
+      <Field
+        label="PixAI 网页 Token（生成前必填）"
+        hint="登录 pixai.art 后按 F12 → Application → Cookies → .pixai.art → user_token 复制 value。它是敏感登录凭证，有效期约一周，仅保存在当前浏览器 localStorage；本项目不会自动读取或登录。"
+      >
+        <SecretInput
+          value={draft.pixaiWebToken}
+          onChange={(pixaiWebToken) => patch({ pixaiWebToken })}
+          placeholder="user_token 的 value"
+          label="PixAI 网页 Token"
+        />
+      </Field>
+      <Field
+        label="PixAI 网页模型 ID（生成前必填）"
+        hint="从网页生图时 DevTools Network 的 createGenerationTask 请求体里取 modelId。"
+      >
+        <Input
+          value={draft.pixaiWebModelId}
+          onChange={(e) => patch({ pixaiWebModelId: e.target.value })}
+          placeholder="当前网页 GraphQL 使用的 modelId"
+          className="font-mono"
+        />
+        <div className="flex flex-wrap gap-1.5 pt-1.5">
+          {PIXAI_WEB_MODEL_PRESETS.map((model) => (
+            <button
+              key={model.id}
+              type="button"
+              onClick={() => patch({ pixaiWebModelId: model.id })}
+              className="rounded-full border border-border/60 bg-surface px-2.5 py-1 text-xs hover:border-primary/60"
+            >
+              {model.label}
+            </button>
+          ))}
+        </div>
+      </Field>
+      <Warning>
+        上面那个预设标着「待验证」是有原因的：实测笔记记录 Haruka v2 的网页 modelId 与官方 API 的
+        modelVersionId 是同一串数字，但网页 GraphQL 和官方 REST 向来是两套独立的 ID
+        空间，两种说法只有一个成立。先按预设试，失败就从 createGenerationTask 请求体里取真实
+        modelId。 此渠道仅支持文生图，NSFW 需先在 PixAI 账号里验证邮箱并开启相关选项。画面比例为
+        auto 时会在发包前被拒绝。
+      </Warning>
+    </>
+  );
+}
+
+function PixaiPoolPanel({ draft, patch }: PanelProps) {
+  return (
+    <>
+      <Field label="PixAI 号池网址">
+        <Input
+          value={draft.pixaiPoolBaseUrl}
+          onChange={(e) => patch({ pixaiPoolBaseUrl: e.target.value })}
+          placeholder="https://imgapi.qianyimwl.top"
+          className="font-mono"
+        />
+      </Field>
+      <Warning>
+        当前只有网页和模型列表，没有提交、轮询、结果的真实请求协议。提供一次生成的 HAR 或 DevTools
+        Network 请求/响应后即可完成传输接入；此前不会向该网址猜测发包。
+      </Warning>
+    </>
+  );
+}
+
+const PROVIDER_PANELS: Record<ProviderId, (props: PanelProps) => React.ReactNode> = {
+  xai: XaiPanel,
+  gitee: GiteePanel,
+  modelscope: ModelScopePanel,
+  aihorde: AiHordePanel,
+  pollinations: PollinationsPanel,
+  pixai: PixaiPanel,
+  "pixai-web": PixaiWebPanel,
+  "pixai-pool": PixaiPoolPanel,
+};
+
 function SettingsPage() {
   const { settings, update } = useSettings();
   const applySettingsDefaults = useAppStore((state) => state.applySettingsDefaults);
   const [draft, setDraft] = useState(settings);
-  const [showKey, setShowKey] = useState(false);
+  // Which provider's page is open. Separate from draft.provider (the channel
+  // used for generation) so that browsing another channel's settings does not
+  // silently switch what the generate button will use.
+  const [tab, setTab] = useState<ProviderId>(settings.provider);
 
   useEffect(() => {
     setDraft(settings);
   }, [settings]);
+
+  const patch = (next: Partial<Settings>) => setDraft((current) => ({ ...current, ...next }));
 
   const save = () => {
     update(draft);
@@ -71,352 +357,82 @@ function SettingsPage() {
     toast.success("设置已保存并应用");
   };
 
+  const meta = PROVIDERS.find((provider) => provider.id === tab);
+  const Panel = PROVIDER_PANELS[tab];
+  const issue = providerSetupIssue(draft, tab);
+  const isActive = draft.provider === tab;
+
   return (
     <div className="mx-auto max-w-3xl px-4 py-8 md:px-8">
       <PageHeader
         title="设置"
-        description="API Key、代理地址、并发与角色预设全部保存在浏览器 localStorage。"
+        description="API Key、代理地址、并发与角色预设全部保存在浏览器 localStorage。模型选择已移到各生成页的参数栏。"
         icon={SettingsIcon}
       />
 
-      <div className="space-y-5 rounded-2xl border border-border/60 bg-card p-6 shadow-card">
-        <div className="space-y-2">
-          <Label className="flex items-center gap-2">
-            <Cloud className="h-4 w-4" /> 图片生成来源
-          </Label>
-          <Select
-            value={draft.provider}
-            onValueChange={(v) => setDraft({ ...draft, provider: v as ProviderId })}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {PROVIDERS.map((p) => (
-                <SelectItem key={p.id} value={p.id}>
-                  {p.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-muted-foreground">
-            {PROVIDERS.find((p) => p.id === draft.provider)?.desc}
-          </p>
-        </div>
-
-        {draft.provider === "xai" && (
-          <>
-            <div className="space-y-2">
-              <Label>xAI API Key</Label>
-              <div className="relative">
-                <Input
-                  type={showKey ? "text" : "password"}
-                  value={draft.apiKey}
-                  onChange={(e) => setDraft({ ...draft, apiKey: e.target.value })}
-                  placeholder="xai-..."
-                  className="pr-10 font-mono"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowKey((v) => !v)}
-                  aria-label={showKey ? "隐藏 API Key" : "显示 API Key"}
-                  className="absolute right-0.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded text-muted-foreground hover:text-foreground"
-                >
-                  {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                官方：
-                <a
-                  href="https://console.x.ai"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-primary-glow hover:underline"
-                >
-                  console.x.ai
-                </a>
-                ；也可填入 NewAPI 中转 Key。
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label>API 代理地址</Label>
-              <Input
-                value={draft.baseUrl}
-                onChange={(e) => setDraft({ ...draft, baseUrl: e.target.value })}
-                placeholder="https://api.x.ai"
-                className="font-mono"
-              />
-              <p className="text-xs text-muted-foreground">
-                默认 https://api.x.ai，可改为 NewAPI 等中转地址。请求路径会自动拼接 /v1/...
-              </p>
-            </div>
-          </>
-        )}
-
-        {draft.provider === "gitee" && (
-          <>
-            <div className="space-y-2">
-              <Label>Gitee AI API Key</Label>
-              <div className="relative">
-                <Input
-                  type={showKey ? "text" : "password"}
-                  value={draft.giteeApiKey}
-                  onChange={(e) => setDraft({ ...draft, giteeApiKey: e.target.value })}
-                  placeholder="免费体验访问令牌"
-                  className="pr-10 font-mono"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowKey((v) => !v)}
-                  aria-label={showKey ? "隐藏 API Key" : "显示 API Key"}
-                  className="absolute right-0.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded text-muted-foreground hover:text-foreground"
-                >
-                  {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                获取地址：
-                <a
-                  href="https://ai.gitee.com"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-primary-glow hover:underline"
-                >
-                  ai.gitee.com
-                </a>
-                。注册需绑定 +86 手机号；注册后会自动创建「免费体验访问令牌」，在任意模型页面的
-                「在线体验 → API」里可以取到。每日 100 次免费额度，次日刷新。
-              </p>
-            </div>
-            <div className="space-y-2">
-              <Label>Gitee AI 模型</Label>
-              <Input
-                value={draft.giteeModel}
-                onChange={(e) => setDraft({ ...draft, giteeModel: e.target.value })}
-                placeholder="z-image-turbo"
-                className="font-mono"
-              />
-              <p className="text-xs text-muted-foreground">
-                接口兼容 OpenAI 格式，单边分辨率上限 2048，超出会被自动收敛到 2048。
-              </p>
-            </div>
-          </>
-        )}
-
-        {draft.provider === "modelscope" && (
-          <div className="space-y-2">
-            <Label>ModelScope Token</Label>
-            <Input
-              type={showKey ? "text" : "password"}
-              value={draft.modelscopeToken}
-              onChange={(e) => setDraft({ ...draft, modelscopeToken: e.target.value })}
-              placeholder="ms-..."
-              className="font-mono"
-            />
-            <p className="text-xs text-muted-foreground">
-              获取地址：
-              <a
-                href="https://modelscope.cn/my/myaccesstoken"
-                target="_blank"
-                rel="noreferrer"
-                className="text-primary-glow hover:underline"
+      <Tabs value={tab} onValueChange={(value) => setTab(value as ProviderId)}>
+        <TabsList className="h-auto flex-wrap justify-start gap-1 bg-transparent p-0">
+          {PROVIDERS.map((provider) => {
+            const ready = providerSetupIssue(draft, provider.id) === null;
+            return (
+              <TabsTrigger
+                key={provider.id}
+                value={provider.id}
+                className="rounded-full border border-border/60 bg-surface data-[state=active]:border-primary/60 data-[state=active]:bg-card"
               >
-                modelscope.cn
-              </a>
-              。 固定使用 Tongyi-MAI/Z-Image-Turbo（异步）。免费额度 2000/天，并发 ≤3。
-            </p>
-          </div>
-        )}
-
-        {draft.provider === "aihorde" && (
-          <div className="space-y-2">
-            <Label>AI Horde API Key（可选）</Label>
-            <div className="relative">
-              <Input
-                type={showKey ? "text" : "password"}
-                value={draft.aiHordeApiKey}
-                onChange={(e) => setDraft({ ...draft, aiHordeApiKey: e.target.value })}
-                placeholder="留空则使用匿名 Key 0000000000"
-                className="pr-10 font-mono"
-              />
-              <button
-                type="button"
-                onClick={() => setShowKey((v) => !v)}
-                aria-label={showKey ? "隐藏 API Key" : "显示 API Key"}
-                className="absolute right-0.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded text-muted-foreground hover:text-foreground"
-              >
-                {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              留空使用匿名队列；个人 Key 可提高优先级。社区算力的等待时间和可用模型会变动。
-            </p>
-          </div>
-        )}
-
-        {draft.provider === "pollinations" && (
-          <>
-            <div className="space-y-2">
-              <Label>Pollinations API Key</Label>
-              <div className="relative">
-                <Input
-                  type={showKey ? "text" : "password"}
-                  value={draft.pollinationsApiKey}
-                  onChange={(e) => setDraft({ ...draft, pollinationsApiKey: e.target.value })}
-                  placeholder="pk_..."
-                  className="pr-10 font-mono"
+                <span
+                  className={cn(
+                    "mr-1.5 inline-block h-1.5 w-1.5 rounded-full",
+                    ready ? "bg-success" : "bg-muted-foreground/40",
+                  )}
+                  aria-hidden
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowKey((v) => !v)}
-                  aria-label={showKey ? "隐藏 API Key" : "显示 API Key"}
-                  className="absolute right-0.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded text-muted-foreground hover:text-foreground"
-                >
-                  {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                当前接口使用 API Key / Pollen 额度，不将它标记为无限免费渠道。
-              </p>
-            </div>
-            <div className="space-y-2">
-              <Label>Pollinations 模型</Label>
-              <Input
-                value={draft.pollinationsModel}
-                onChange={(e) => setDraft({ ...draft, pollinationsModel: e.target.value })}
-                placeholder="flux"
-                className="font-mono"
-              />
-            </div>
-          </>
-        )}
+                {provider.label.replace(/（.*）/, "")}
+                {draft.provider === provider.id && " ·"}
+              </TabsTrigger>
+            );
+          })}
+        </TabsList>
 
-        {draft.provider === "pixai" && (
-          <>
-            <div className="space-y-2">
-              <Label>PixAI API Key</Label>
-              <div className="relative">
-                <Input
-                  type={showKey ? "text" : "password"}
-                  value={draft.pixaiApiKey}
-                  onChange={(e) => setDraft({ ...draft, pixaiApiKey: e.target.value })}
-                  placeholder="PixAI v2 API Key"
-                  className="pr-10 font-mono"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowKey((value) => !value)}
-                  aria-label={showKey ? "隐藏 API Key" : "显示 API Key"}
-                  className="absolute right-0.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded text-muted-foreground hover:text-foreground"
-                >
-                  {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
+        {PROVIDERS.map((provider) => (
+          <TabsContent key={provider.id} value={provider.id} className="mt-4">
+            <div className="space-y-5 rounded-2xl border border-border/60 bg-card p-6 shadow-card">
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="font-display text-base font-semibold">{meta?.label}</h3>
+                  {isActive ? (
+                    <span className="flex items-center gap-1 text-xs text-success">
+                      <CheckCircle2 className="h-3.5 w-3.5" /> 当前生成渠道
+                    </span>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => patch({ provider: tab })}
+                      disabled={issue !== null}
+                    >
+                      设为当前渠道
+                    </Button>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">{meta?.desc}</p>
+                <p className="rounded-lg border border-dashed border-border/60 bg-surface/60 px-3 py-2 text-xs text-muted-foreground">
+                  <span className="text-foreground/80">免费额度：</span>
+                  {meta?.quota}
+                </p>
+                {issue && <p className="text-xs text-warning">还需填写：{issue}</p>}
               </div>
-              <p className="text-xs text-muted-foreground">
-                普通用户需申请并等待审核，会员可直接获取；公开免费额度未知。请求直接发送到
-                api.pixai.art，不使用网页登录 Token。Key 只保存在当前浏览器。
-              </p>
-            </div>
-            <div className="space-y-2">
-              <Label>PixAI 模型版本 ID</Label>
-              <Input
-                value={draft.pixaiModelVersionId}
-                onChange={(e) => setDraft({ ...draft, pixaiModelVersionId: e.target.value })}
-                placeholder="1983308862240288769"
-                className="font-mono"
-              />
-              <div className="flex flex-wrap gap-1.5">
-                {PIXAI_MODEL_PRESETS.map((model) => (
-                  <button
-                    key={model.id}
-                    type="button"
-                    onClick={() => setDraft({ ...draft, pixaiModelVersionId: model.id })}
-                    className="rounded-full border border-border/60 bg-surface px-2.5 py-1 text-xs hover:border-primary/60"
-                  >
-                    {model.label}
-                  </button>
-                ))}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                默认 Tsubaki.2。通用 2k 档会按 PixAI 协议转换为 1.5k；多张图片逐张提交。 PixAI
-                不支持 2:1、1:2 和 auto 比例。
-              </p>
-            </div>
-          </>
-        )}
 
-        {draft.provider === "pixai-web" && (
-          <>
-            <div className="space-y-2">
-              <Label>PixAI 网页 Token（生成前必填）</Label>
-              <div className="relative">
-                <Input
-                  type={showKey ? "text" : "password"}
-                  value={draft.pixaiWebToken}
-                  onChange={(e) => setDraft({ ...draft, pixaiWebToken: e.target.value })}
-                  placeholder="api.pixai.art:token 的 value"
-                  className="pr-10 font-mono"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowKey((value) => !value)}
-                  aria-label={showKey ? "隐藏网页 Token" : "显示网页 Token"}
-                  className="absolute right-0.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded text-muted-foreground hover:text-foreground"
-                >
-                  {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                从本人已登录的 PixAI 网页会话中，手工复制 LocalStorage `api.pixai.art:token` 的
-                value。它是敏感登录凭证，可能过期，仅保存在当前浏览器
-                localStorage；本项目不会自动读取或登录。
-              </p>
+              {Panel && <Panel draft={draft} patch={patch} />}
             </div>
-            <div className="space-y-2">
-              <Label>PixAI 网页模型 ID（生成前必填）</Label>
-              <Input
-                value={draft.pixaiWebModelId}
-                onChange={(e) => setDraft({ ...draft, pixaiWebModelId: e.target.value })}
-                placeholder="当前网页 GraphQL 使用的 modelId"
-                className="font-mono"
-              />
-              <p className="text-xs text-muted-foreground">
-                必须填写网页请求中的 GraphQL modelId。它与官方 REST API 的 modelVersionId
-                不同，因此这里不提供官方模型预设。
-              </p>
-            </div>
-            <div className="flex gap-3 rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
-              <p className="text-foreground/90">
-                此渠道仅支持文生图，使用可能变化的旧 GraphQL 协议。账号额度由 PixAI
-                控制，不保证免费；真实 Token 和浏览器 CORS 仍需在使用者环境中验收。画面比例为 auto
-                时，发包前会拒绝，请先切换为具体比例（如 1:1、16:9 或 9:16）。
-              </p>
-            </div>
-          </>
-        )}
+          </TabsContent>
+        ))}
+      </Tabs>
 
-        {draft.provider === "pixai-pool" && (
-          <>
-            <div className="space-y-2">
-              <Label>PixAI 号池网址</Label>
-              <Input
-                value={draft.pixaiPoolBaseUrl}
-                onChange={(e) => setDraft({ ...draft, pixaiPoolBaseUrl: e.target.value })}
-                placeholder="https://imgapi.qianyimwl.top"
-                className="font-mono"
-              />
-            </div>
-            <div className="flex gap-3 rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-sm">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
-              <p className="text-foreground/90">
-                当前只有网页和模型列表，没有提交、轮询、结果的真实请求协议。提供一次生成的 HAR 或
-                DevTools Network 请求/响应后即可完成传输接入；此前不会向该网址猜测发包。
-              </p>
-            </div>
-          </>
-        )}
+      <div className="mt-6 space-y-5 rounded-2xl border border-border/60 bg-card p-6 shadow-card">
+        <h3 className="flex items-center gap-2 font-display text-base font-semibold">
+          <Sliders className="h-4 w-4" /> 通用默认值
+        </h3>
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
@@ -428,7 +444,7 @@ function SettingsPage() {
             max={10}
             step={1}
             value={[draft.concurrency]}
-            onValueChange={(v) => setDraft({ ...draft, concurrency: v[0] })}
+            onValueChange={(v) => patch({ concurrency: v[0] })}
           />
           <p className="text-xs text-muted-foreground">
             同人图批量、漫画上色、漫画翻译均使用此并发数。共享免费渠道或同时运行其他会话时建议设为
@@ -439,25 +455,17 @@ function SettingsPage() {
         <div className="grid gap-4 md:grid-cols-2">
           <AspectRatioSelect
             value={draft.defaultAspectRatio}
-            onChange={(v) => setDraft({ ...draft, defaultAspectRatio: v })}
+            onChange={(defaultAspectRatio) => patch({ defaultAspectRatio })}
           />
           <ResolutionSelect
             value={draft.defaultResolution}
-            onChange={(v) => setDraft({ ...draft, defaultResolution: v as "1k" | "2k" })}
+            onChange={(value) => patch({ defaultResolution: value as ResolutionTier })}
           />
-          {draft.provider === "xai" && (
-            <ImageModelSelect
-              value={draft.imageModel}
-              onChange={(v) => setDraft({ ...draft, imageModel: v })}
-            />
-          )}
-          {draft.provider === "xai" && (
-            <VideoModelSelect
-              value={draft.videoModel}
-              onChange={(v) => setDraft({ ...draft, videoModel: v })}
-            />
-          )}
         </div>
+        <p className="text-xs text-muted-foreground">
+          低分辨率档位是为免费渠道准备的：AI Horde 新号 Kudos 为 0 时只能出约 711×711 以下，选 512
+          或 768 才不会被拒。各模型还有自己的上限（如 Z-Image-Turbo 1664），超出会自动收敛。
+        </p>
 
         <div className="flex justify-end pt-2">
           <Button

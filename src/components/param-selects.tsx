@@ -6,7 +6,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { IMAGE_MODELS, VIDEO_MODELS } from "@/lib/settings";
+import { IMAGE_MODELS, RESOLUTION_TIERS, VIDEO_MODELS } from "@/lib/settings";
 
 export const ASPECT_RATIOS = [
   "1:1",
@@ -49,14 +49,18 @@ export function AspectRatioSelect({
   );
 }
 
+// Defaults to the shared image tier list. The video page passes its own
+// options ("480p" / "720p"), which are unrelated to image tiers.
+const IMAGE_TIER_OPTIONS = RESOLUTION_TIERS.map((tier) => ({ id: tier.id, label: tier.label }));
+
 export function ResolutionSelect({
   value,
   onChange,
-  options = ["1k", "2k"],
+  options = IMAGE_TIER_OPTIONS,
 }: {
   value: string;
   onChange: (v: string) => void;
-  options?: string[];
+  options?: readonly (string | { id: string; label: string })[];
 }) {
   return (
     <div className="space-y-1.5">
@@ -68,11 +72,15 @@ export function ResolutionSelect({
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          {options.map((r) => (
-            <SelectItem key={r} value={r}>
-              {r}
-            </SelectItem>
-          ))}
+          {options.map((option) => {
+            const id = typeof option === "string" ? option : option.id;
+            const label = typeof option === "string" ? option : option.label;
+            return (
+              <SelectItem key={id} value={id}>
+                {label}
+              </SelectItem>
+            );
+          })}
         </SelectContent>
       </Select>
     </div>

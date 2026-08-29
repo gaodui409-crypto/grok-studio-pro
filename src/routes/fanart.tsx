@@ -38,7 +38,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { PageHeader } from "@/components/page-header";
 import { ApiKeyBanner } from "@/components/api-key-banner";
 import { ImageUpload } from "@/components/image-upload";
-import { AspectRatioSelect, ResolutionSelect, ImageModelSelect } from "@/components/param-selects";
+import { AspectRatioSelect, ResolutionSelect } from "@/components/param-selects";
+import { ProviderModelSelect, ProviderSelect } from "@/components/provider-model-select";
 import { EditableChipList, type EditableItem } from "@/components/editable-chip-list";
 import { useSettings } from "@/hooks/use-settings";
 import { editImages, generateImages, currentProvider, providerLabel } from "@/lib/xai";
@@ -54,6 +55,7 @@ import { addGalleryFromUrl } from "@/lib/gallery-db";
 import { runWithConcurrency } from "@/lib/concurrency";
 import { BUILTIN_PRESETS, loadCustomPresets, type CharacterPreset } from "@/lib/character-presets";
 import { useAppStore, applyPresetToFanart, presetExtraItems, type SceneSel } from "@/lib/app-store";
+import type { ResolutionTier } from "@/lib/settings";
 import { cn } from "@/lib/utils";
 import { isAbortError } from "@/lib/http";
 
@@ -702,10 +704,11 @@ function FanartPage() {
                 <AspectRatioSelect value={aspect} onChange={(v) => setF({ aspect: v })} />
                 <ResolutionSelect
                   value={resolution}
-                  onChange={(v) => setF({ resolution: v as "1k" | "2k" })}
+                  onChange={(v) => setF({ resolution: v as ResolutionTier })}
                 />
               </div>
-              <ImageModelSelect value={model} onChange={(v) => setF({ model: v })} />
+              <ProviderSelect />
+              <ProviderModelSelect />
 
               <div className="rounded-lg border border-dashed border-border/60 bg-surface/60 p-3 text-xs">
                 <div className="flex items-center justify-between">

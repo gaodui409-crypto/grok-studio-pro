@@ -9,11 +9,13 @@ import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/page-header";
 import { ApiKeyBanner } from "@/components/api-key-banner";
 import { ImageGallery } from "@/components/image-gallery";
-import { AspectRatioSelect, ResolutionSelect, ImageModelSelect } from "@/components/param-selects";
+import { AspectRatioSelect, ResolutionSelect } from "@/components/param-selects";
+import { ProviderModelSelect, ProviderSelect } from "@/components/provider-model-select";
 import { generateImages, currentProvider, providerLabel } from "@/lib/xai";
 import { addGalleryFromUrl } from "@/lib/gallery-db";
 import { useAppStore } from "@/lib/app-store";
 import { isAbortError } from "@/lib/http";
+import type { ResolutionTier } from "@/lib/settings";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -50,7 +52,9 @@ function Index() {
       setT2I({ images: data });
       toast.success(`已生成 ${data.length} 张图片`);
       const prov = currentProvider();
-      Promise.all(
+      // allSettled, not all: with Promise.all a batch where 3 of 4 images fail
+      // to save reports only the first reason and silently drops the rest.
+      Promise.allSettled(
         data.map((img) =>
           addGalleryFromUrl(img.url, {
             prompt,
@@ -59,9 +63,21 @@ function Index() {
             provider: providerLabel(prov),
           }),
         ),
-      )
-        .then(() => toast.success("已自动保存到画廊"))
-        .catch((e) => toast.error(`画廊保存失败：${(e as Error).message}`));
+      ).then((results) => {
+        const failed = results.filter(
+          (result): result is PromiseRejectedResult => result.status === "rejected",
+        );
+        if (failed.length === 0) {
+          toast.success("已自动保存到画廊");
+          return;
+        }
+        const reason = (failed[0].reason as Error)?.message ?? "未知原因";
+        toast.error(
+          failed.length === results.length
+            ? `画廊保存失败：${reason}`
+            : `画廊保存部分失败：${failed.length}/${results.length} 张未保存（${reason}）`,
+        );
+      });
     } catch (e) {
       if (isAbortError(e)) toast.info("已取消生成");
       else toast.error((e as Error).message);
@@ -133,16 +149,10 @@ function Index() {
           <AspectRatioSelect value={aspect} onChange={(v) => setT2I({ aspect: v })} />
           <ResolutionSelect
             value={resolution}
-            onChange={(v) => setT2I({ resolution: v as "1k" | "2k" })}
+            onChange={(v) => setT2I({ resolution: v as ResolutionTier })}
           />
-          {currentProvider() === "xai" && (
-            <ImageModelSelect value={model} onChange={(v) => setT2I({ model: v })} />
-          )}
-          {currentProvider() !== "xai" && (
-            <div className="rounded-md border border-border/60 bg-surface px-2.5 py-1.5 text-xs text-muted-foreground">
-              当前模型：<span className="text-foreground">{providerLabel()}</span>
-            </div>
-          )}
+          <ProviderSelect />
+          <ProviderModelSelect />
         </aside>
       </div>
 

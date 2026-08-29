@@ -11,6 +11,7 @@ import { ProviderUnsupportedBanner } from "@/components/provider-banner";
 import { ImageGallery } from "@/components/image-gallery";
 import { ImageUpload } from "@/components/image-upload";
 import { ResolutionSelect, ImageModelSelect } from "@/components/param-selects";
+import type { ResolutionTier } from "@/lib/settings";
 import { editImages, currentProvider, providerLabel } from "@/lib/xai";
 import { addGalleryFromUrl } from "@/lib/gallery-db";
 import { useAppStore } from "@/lib/app-store";
@@ -120,7 +121,7 @@ function EditPage() {
           </div>
           <ResolutionSelect
             value={resolution}
-            onChange={(v) => set({ resolution: v as "1k" | "2k" })}
+            onChange={(v) => set({ resolution: v as ResolutionTier })}
           />
           <ImageModelSelect value={model} onChange={(v) => set({ model: v })} />
         </aside>
