@@ -51,7 +51,6 @@ export async function pollModelScopeTask(
   while (true) {
     if (signal?.aborted) throw abortError();
     if (now() - startedAt >= timeoutMs) throw new Error("ModelScope 任务轮询超时");
-    await sleep(intervalMs, signal);
     const status = await getStatus();
     if (status.task_status === "SUCCEED") {
       const url = status.output_images?.[0];
@@ -61,5 +60,8 @@ export async function pollModelScopeTask(
     if (FAILED.has(status.task_status)) {
       throw new Error(`ModelScope 任务 ${status.task_status}: ${JSON.stringify(status.errors)}`);
     }
+    // Sleep after checking, not before: the submit response already carries the
+    // task id, so a leading sleep only delays every task by one interval.
+    await sleep(intervalMs, signal);
   }
 }

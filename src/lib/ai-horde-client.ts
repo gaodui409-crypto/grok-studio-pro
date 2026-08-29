@@ -95,7 +95,6 @@ export async function runAiHordeGeneration(
   while (true) {
     input.signal?.throwIfAborted();
     if (now() - startedAt >= timeoutMs) throw new Error("AI Horde 任务轮询超时");
-    await sleep(pollIntervalMs, input.signal);
     const check = await checkedJson<AiHordeCheck>(
       fetchImpl(`${AI_HORDE_BASE_URL}/generate/check/${submission.id}`, {
         signal: input.signal,
@@ -105,6 +104,9 @@ export async function runAiHordeGeneration(
     );
     if (check.faulted) throw new Error("AI Horde 任务失败");
     if (check.done) break;
+    // Sleep after checking, not before: a job that is already finished when we
+    // first ask should not wait a full interval before we notice.
+    await sleep(pollIntervalMs, input.signal);
   }
 
   const status = await checkedJson<AiHordeStatus>(

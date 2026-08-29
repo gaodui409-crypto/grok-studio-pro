@@ -132,6 +132,35 @@ test("times out jobs that remain queued", async () => {
   );
 });
 
+test("checks the job before sleeping so a finished job is noticed at once", async () => {
+  const order: string[] = [];
+  const responses = [
+    jsonResponse({ id: "ready-task" }),
+    jsonResponse({ done: true, faulted: false }),
+    jsonResponse({ done: true, generations: [{ img: "https://images.example/ready.webp" }] }),
+  ];
+
+  const result = await runAiHordeGeneration(
+    { prompt: "test", apiKey: "key", width: 512, height: 512, count: 1 },
+    {
+      fetch: async (input) => {
+        order.push(String(input).includes("/generate/check/") ? "check" : "request");
+        return responses.shift()!;
+      },
+      sleep: async () => {
+        order.push("sleep");
+      },
+    },
+  );
+
+  assert.deepEqual(result, [{ url: "https://images.example/ready.webp", mime_type: "image/webp" }]);
+  assert.deepEqual(
+    order,
+    ["request", "check", "request"],
+    "a job already done on the first check must not sleep before the status fetch",
+  );
+});
+
 test("honors an already aborted signal", async () => {
   const controller = new AbortController();
   controller.abort();

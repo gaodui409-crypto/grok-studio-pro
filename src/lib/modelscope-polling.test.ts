@@ -49,3 +49,21 @@ test("honors an aborted signal", async () => {
     (error: unknown) => error instanceof DOMException && error.name === "AbortError",
   );
 });
+
+test("checks status before sleeping so a ready task returns immediately", async () => {
+  const order: string[] = [];
+  const result = await pollModelScopeTask(
+    async () => {
+      order.push("check");
+      return { task_status: "SUCCEED", output_images: ["https://example.test/fast.png"] };
+    },
+    {
+      sleep: async () => {
+        order.push("sleep");
+      },
+    },
+  );
+
+  assert.equal(result, "https://example.test/fast.png");
+  assert.deepEqual(order, ["check"], "a task ready on the first check must not sleep at all");
+});
