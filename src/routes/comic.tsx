@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import {
   BookOpen,
   Sparkles,
@@ -47,7 +47,7 @@ import { useAppStore, type ComicPageItem } from "@/lib/app-store";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { attemptPersistence } from "@/lib/persistence";
-import { fetchBlobChecked } from "@/lib/http";
+import { fetchBlobChecked, isAbortError } from "@/lib/http";
 
 export const Route = createFileRoute("/comic")({
   head: () => ({
@@ -226,6 +226,7 @@ function ColorizePanel() {
   const set = useAppStore((s) => s.setComic);
   const patch = useAppStore((s) => s.patchComic);
   const [previewPage, setPreviewPage] = useState<ComicPageItem | null>(null);
+  const runRef = useRef<AbortController | null>(null);
 
   const {
     colorPages: pages,
@@ -238,6 +239,13 @@ function ColorizePanel() {
   } = c;
   const styleText = styleSel === "自定义" ? customStyle.trim() : styleSel;
 
+  const cancelRun = () => runRef.current?.abort();
+
+  // The batch outlives this component (progress lives in the global store), so an
+  // unmount must stop the in-flight requests or they keep burning provider quota
+  // with no UI left to cancel them.
+  useEffect(() => () => runRef.current?.abort(), []);
+
   const updatePage = (id: string, p: Partial<ComicPageItem>) =>
     patch((s) => ({
       ...s,
@@ -247,6 +255,8 @@ function ColorizePanel() {
   const handleRun = async () => {
     if (!pages.length) return toast.error("请上传漫画页");
     if (!styleText) return toast.error("请选择或输入上色风格");
+    const controller = new AbortController();
+    runRef.current = controller;
     set({ colorRunning: true, colorDone: 0 });
     patch((s) => ({
       ...s,
@@ -260,43 +270,64 @@ function ColorizePanel() {
     let unsaved = 0;
     const saveErrors: string[] = [];
 
-    await runWithConcurrency(
-      pages,
-      async (page) => {
-        updatePage(page.id, { status: "running", step: "上色中…" });
-        try {
-          const basePrompt = refImage.length
-            ? `参考 <IMAGE_1> 的配色风格，为 <IMAGE_0> 这张黑白漫画上色，使用${styleText}，保持原画的线条和构图不变`
-            : `为这张黑白漫画上色，使用${styleText}，保持原画的线条和构图不变，色彩自然协调`;
-          const images = refImage.length ? [page.src, refImage[0]] : [page.src];
-          const data = await editImages({ prompt: basePrompt, images, n: 1, model });
-          const img = data[0];
-          if (!img?.url) throw new Error("API 未返回图片");
-          updatePage(page.id, { status: "done", resultUrl: img.url });
-          const persistence = await attemptPersistence(() =>
-            addGalleryFromUrl(img.url, {
+    try {
+      await runWithConcurrency(
+        pages,
+        async (page) => {
+          controller.signal.throwIfAborted();
+          updatePage(page.id, { status: "running", step: "上色中…" });
+          try {
+            const basePrompt = refImage.length
+              ? `参考 <IMAGE_1> 的配色风格，为 <IMAGE_0> 这张黑白漫画上色，使用${styleText}，保持原画的线条和构图不变`
+              : `为这张黑白漫画上色，使用${styleText}，保持原画的线条和构图不变，色彩自然协调`;
+            const images = refImage.length ? [page.src, refImage[0]] : [page.src];
+            const data = await editImages({
               prompt: basePrompt,
+              images,
+              n: 1,
               model,
-              sceneName: "漫画上色",
-              type: "image",
-              provider: providerLabel(currentProvider()),
-            }),
-          );
-          if (!persistence.saved) {
-            unsaved++;
-            saveErrors.push(`${page.name}: ${persistence.error.message}`);
+              signal: controller.signal,
+            });
+            const img = data[0];
+            if (!img?.url) throw new Error("API 未返回图片");
+            updatePage(page.id, { status: "done", resultUrl: img.url });
+            const persistence = await attemptPersistence(() =>
+              addGalleryFromUrl(img.url, {
+                prompt: basePrompt,
+                model,
+                sceneName: "漫画上色",
+                type: "image",
+                provider: providerLabel(currentProvider()),
+              }),
+            );
+            if (!persistence.saved) {
+              unsaved++;
+              saveErrors.push(`${page.name}: ${persistence.error.message}`);
+            }
+          } catch (e) {
+            if (isAbortError(e)) throw e;
+            updatePage(page.id, { status: "failed", error: (e as Error).message });
+            toast.error(`第 ${page.name} 失败：${(e as Error).message}`);
+          } finally {
+            patch((s) => ({ ...s, colorDone: s.colorDone + 1 }));
           }
-        } catch (e) {
-          updatePage(page.id, { status: "failed", error: (e as Error).message });
-          toast.error(`第 ${page.name} 失败：${(e as Error).message}`);
-        } finally {
-          patch((s) => ({ ...s, colorDone: s.colorDone + 1 }));
-        }
-      },
-      settings.concurrency,
-    );
+        },
+        settings.concurrency,
+      );
+    } catch (e) {
+      if (isAbortError(e)) {
+        toast.info("已取消上色任务");
+        return;
+      }
+      toast.error((e as Error).message);
+      return;
+    } finally {
+      if (runRef.current === controller) {
+        runRef.current = null;
+        set({ colorRunning: false });
+      }
+    }
 
-    set({ colorRunning: false });
     if (unsaved) {
       toast.warning(`上色任务完成，但 ${unsaved} 张未保存到画廊：${saveErrors[0]}`);
     } else {
@@ -365,6 +396,11 @@ function ColorizePanel() {
             )}
             {running ? "上色中…" : "开始上色"}
           </Button>
+          {running && (
+            <Button type="button" variant="secondary" onClick={cancelRun}>
+              <X className="mr-2 h-4 w-4" /> 取消
+            </Button>
+          )}
         </div>
       </div>
 
@@ -422,6 +458,7 @@ function TranslatePanel() {
   const set = useAppStore((s) => s.setComic);
   const patch = useAppStore((s) => s.patchComic);
   const [previewPage, setPreviewPage] = useState<ComicPageItem | null>(null);
+  const runRef = useRef<AbortController | null>(null);
 
   const {
     translatePages: pages,
@@ -437,6 +474,12 @@ function TranslatePanel() {
       ? { from: customFrom.trim(), to: customTo.trim() }
       : LANG_PRESETS[Number(preset)];
 
+  const cancelRun = () => runRef.current?.abort();
+
+  // Translate runs two requests per page (chat + edit), so an abandoned batch is
+  // twice as expensive to leave running after unmount.
+  useEffect(() => () => runRef.current?.abort(), []);
+
   const updatePage = (id: string, p: Partial<ComicPageItem>) =>
     patch((s) => ({
       ...s,
@@ -446,6 +489,8 @@ function TranslatePanel() {
   const handleRun = async () => {
     if (!pages.length) return toast.error("请上传漫画页");
     if (!langs.from || !langs.to) return toast.error("请填写源语言和目标语言");
+    const controller = new AbortController();
+    runRef.current = controller;
     set({ translateRunning: true, translateDone: 0 });
     patch((s) => ({
       ...s,
@@ -460,55 +505,77 @@ function TranslatePanel() {
     let unsaved = 0;
     const saveErrors: string[] = [];
 
-    await runWithConcurrency(
-      pages,
-      async (page) => {
-        try {
-          updatePage(page.id, { status: "running", step: "识别中…" });
-          const ocrPrompt = `这是一页漫画，请识别图中所有文字气泡/对话框中的${langs.from}文字，翻译为${langs.to}。按顺序列出每个气泡的原文和译文，格式：\n气泡1：原文｜译文\n气泡2：原文｜译文\n...`;
-          const translation = await chatCompletion({
-            model: "grok-4.20-0309-non-reasoning",
-            messages: [
-              {
-                role: "user",
-                content: [
-                  { type: "image_url", image_url: { url: page.src } },
-                  { type: "text", text: ocrPrompt },
-                ],
-              },
-            ],
-          });
-          updatePage(page.id, { translation, step: "嵌入中…" });
+    try {
+      await runWithConcurrency(
+        pages,
+        async (page) => {
+          controller.signal.throwIfAborted();
+          try {
+            updatePage(page.id, { status: "running", step: "识别中…" });
+            const ocrPrompt = `这是一页漫画，请识别图中所有文字气泡/对话框中的${langs.from}文字，翻译为${langs.to}。按顺序列出每个气泡的原文和译文，格式：\n气泡1：原文｜译文\n气泡2：原文｜译文\n...`;
+            const translation = await chatCompletion({
+              model: "grok-4.20-0309-non-reasoning",
+              signal: controller.signal,
+              messages: [
+                {
+                  role: "user",
+                  content: [
+                    { type: "image_url", image_url: { url: page.src } },
+                    { type: "text", text: ocrPrompt },
+                  ],
+                },
+              ],
+            });
+            updatePage(page.id, { translation, step: "嵌入中…" });
 
-          const embedPrompt = `将这张漫画中的所有文字替换为以下${langs.to}翻译，保持气泡位置和大小不变，字体清晰可读：\n${translation}`;
-          const data = await editImages({ prompt: embedPrompt, images: [page.src], n: 1, model });
-          const img = data[0];
-          if (!img?.url) throw new Error("API 未返回图片");
-          updatePage(page.id, { status: "done", resultUrl: img.url, step: "完成" });
-          const persistence = await attemptPersistence(() =>
-            addGalleryFromUrl(img.url, {
+            const embedPrompt = `将这张漫画中的所有文字替换为以下${langs.to}翻译，保持气泡位置和大小不变，字体清晰可读：\n${translation}`;
+            const data = await editImages({
               prompt: embedPrompt,
+              images: [page.src],
+              n: 1,
               model,
-              sceneName: "漫画翻译",
-              type: "image",
-              provider: providerLabel(currentProvider()),
-            }),
-          );
-          if (!persistence.saved) {
-            unsaved++;
-            saveErrors.push(`${page.name}: ${persistence.error.message}`);
+              signal: controller.signal,
+            });
+            const img = data[0];
+            if (!img?.url) throw new Error("API 未返回图片");
+            updatePage(page.id, { status: "done", resultUrl: img.url, step: "完成" });
+            const persistence = await attemptPersistence(() =>
+              addGalleryFromUrl(img.url, {
+                prompt: embedPrompt,
+                model,
+                sceneName: "漫画翻译",
+                type: "image",
+                provider: providerLabel(currentProvider()),
+              }),
+            );
+            if (!persistence.saved) {
+              unsaved++;
+              saveErrors.push(`${page.name}: ${persistence.error.message}`);
+            }
+          } catch (e) {
+            if (isAbortError(e)) throw e;
+            updatePage(page.id, { status: "failed", error: (e as Error).message });
+            toast.error(`${page.name} 失败：${(e as Error).message}`);
+          } finally {
+            patch((s) => ({ ...s, translateDone: s.translateDone + 1 }));
           }
-        } catch (e) {
-          updatePage(page.id, { status: "failed", error: (e as Error).message });
-          toast.error(`${page.name} 失败：${(e as Error).message}`);
-        } finally {
-          patch((s) => ({ ...s, translateDone: s.translateDone + 1 }));
-        }
-      },
-      settings.concurrency,
-    );
+        },
+        settings.concurrency,
+      );
+    } catch (e) {
+      if (isAbortError(e)) {
+        toast.info("已取消翻译任务");
+        return;
+      }
+      toast.error((e as Error).message);
+      return;
+    } finally {
+      if (runRef.current === controller) {
+        runRef.current = null;
+        set({ translateRunning: false });
+      }
+    }
 
-    set({ translateRunning: false });
     if (unsaved) {
       toast.warning(`翻译任务完成，但 ${unsaved} 张未保存到画廊：${saveErrors[0]}`);
     } else {
@@ -580,6 +647,11 @@ function TranslatePanel() {
             )}
             {running ? "翻译中…" : "开始翻译"}
           </Button>
+          {running && (
+            <Button type="button" variant="secondary" onClick={cancelRun}>
+              <X className="mr-2 h-4 w-4" /> 取消
+            </Button>
+          )}
         </div>
       </div>
 
