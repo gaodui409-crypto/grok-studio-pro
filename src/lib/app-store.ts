@@ -127,6 +127,10 @@ export type ComicPageItem = {
   step?: string;
   translation?: string;
   error?: string;
+  /** Wall clock at which this page's request started, for the live "已用 3.4s" readout. */
+  startedAt?: number;
+  /** How long the page finally took. Kept separately so it survives a later re-run's reset. */
+  elapsedMs?: number;
 };
 export type ComicState = {
   tab: "colorize" | "translate";
@@ -137,14 +141,12 @@ export type ComicState = {
   customStyle: string;
   refImage: string[];
   colorRunning: boolean;
-  colorDone: number;
   // translate
   translatePages: ComicPageItem[];
-  preset: string;
-  customFrom: string;
-  customTo: string;
+  /** Language names, not preset indexes — "自定义" pairs are just two more strings. */
+  langFrom: string;
+  langTo: string;
   translateRunning: boolean;
-  translateDone: number;
 };
 
 type Store = {
@@ -225,13 +227,10 @@ export const initialComic: ComicState = {
   customStyle: "",
   refImage: [],
   colorRunning: false,
-  colorDone: 0,
   translatePages: [],
-  preset: "0",
-  customFrom: "",
-  customTo: "",
+  langFrom: "日语",
+  langTo: "简体中文",
   translateRunning: false,
-  translateDone: 0,
 };
 
 export const useAppStore = create<Store>((set) => ({

@@ -40,6 +40,12 @@ export type DownloadBatchResult = { saved: number; failed: number };
 export async function downloadAllAsZip(
   items: { url: string; filename: string }[],
   zipName = "grok-studio.zip",
+  /**
+   * Entries already in memory — e.g. the comic translation `.txt` beside each page.
+   * They cannot fail, so they are not counted in `saved`/`failed`, which report on
+   * fetches only.
+   */
+  textFiles: { filename: string; content: string }[] = [],
 ): Promise<DownloadBatchResult> {
   const zip = new JSZip();
   let saved = 0;
@@ -54,6 +60,7 @@ export async function downloadAllAsZip(
       }
     }),
   );
+  for (const f of textFiles) zip.file(f.filename, f.content);
   const blob = await zip.generateAsync({ type: "blob" });
   saveBlob(blob, zipName);
   return { saved, failed };
