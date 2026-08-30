@@ -1,12 +1,14 @@
 import { test, expect, seedSettings, trapConsole, CONFIGURED } from "./fixtures";
 
+// `heading` is matched as a substring, so the gallery's item count can vary
+// without the assertion caring.
 const ROUTES = [
   { path: "/", name: "文生图", heading: "文生图" },
   { path: "/edit", name: "图生图", heading: "图生图 / 编辑" },
   { path: "/video", name: "视频生成", heading: "视频生成" },
   { path: "/fanart", name: "同人图批量", heading: "同人图批量生成" },
   { path: "/comic", name: "漫画工具", heading: "漫画工具" },
-  { path: "/gallery", name: "画廊", heading: "画廊" },
+  { path: "/gallery", name: "画廊", heading: "全部生成结果" },
   { path: "/settings", name: "设置", heading: "设置" },
 ] as const;
 
@@ -49,7 +51,7 @@ test.describe("导航", () => {
   test("侧边栏可在页面间跳转", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("link", { name: "画廊" }).click();
-    await expect(page.getByRole("heading", { name: "画廊", level: 1 })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "全部生成结果", level: 1 })).toBeVisible();
     await page.getByRole("link", { name: "设置" }).click();
     await expect(page.getByRole("heading", { name: "设置", level: 1 })).toBeVisible();
   });

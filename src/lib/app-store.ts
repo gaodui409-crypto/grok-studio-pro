@@ -10,7 +10,7 @@ import { create } from "zustand";
 import type { GeneratedImage, VideoStatus } from "./xai";
 import type { CharacterPreset } from "./character-presets";
 import type { ResolutionTier, Settings } from "./settings";
-import { getSettingsDefaultPatches } from "./settings-defaults";
+import { getSettingsDefaultPatches } from "./settings-defaults.ts";
 
 // ---------------- Text-to-image (/) ----------------
 export type T2IState = {

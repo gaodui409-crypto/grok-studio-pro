@@ -1,7 +1,7 @@
 // IndexedDB persistent gallery for generated images.
 // Stores blob + metadata, since xAI URLs expire.
 
-import { fetchBlobChecked } from "./http";
+import { fetchBlobChecked } from "./http.ts";
 
 export type GalleryItem = {
   id: string;
@@ -149,4 +149,23 @@ export function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
   return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GB`;
+}
+
+const UNITS = [
+  { limit: 1024 * 1024 * 1024, div: 1024 * 1024 * 1024, suffix: "GB", digits: 2 },
+  { limit: 1024 * 1024, div: 1024 * 1024, suffix: "MB", digits: 1 },
+  { limit: 1024, div: 1024, suffix: "KB", digits: 1 },
+] as const;
+
+/**
+ * A used/total pair sharing one unit, e.g. `1.20 / 6.00 GB`.
+ *
+ * Formatting each side independently gives things like `2.1 KB / 1015.9 MB`,
+ * where the reader has to convert in their head to see how full the quota is.
+ * The unit comes from the total, so the ratio is legible at a glance.
+ */
+export function formatBytesPair(used: number, total: number): string {
+  const unit = UNITS.find((candidate) => total >= candidate.limit);
+  if (!unit) return `${used} / ${total} B`;
+  return `${(used / unit.div).toFixed(unit.digits)} / ${(total / unit.div).toFixed(unit.digits)} ${unit.suffix}`;
 }

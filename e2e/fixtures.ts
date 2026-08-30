@@ -27,6 +27,77 @@ export const CONFIGURED = {
   concurrency: 3,
 };
 
+export type SeedItem = {
+  id: string;
+  prompt: string;
+  sceneName?: string;
+  character?: string;
+  provider?: string;
+  type?: "image" | "video";
+  ageDays?: number;
+  size?: number;
+};
+
+/**
+ * Writes records straight into the gallery's IndexedDB store.
+ *
+ * Generating for real would need live API keys, so the archive is faked. Blobs
+ * are 1×1 PNGs — enough for object URLs, `<img>` decoding and card layout to be
+ * exercised, without shipping fixture images.
+ */
+export async function seedGallery(page: Page, items: SeedItem[]) {
+  await page.addInitScript((seed) => {
+    const PNG =
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==";
+    const toBlob = (base64: string, mime: string) => {
+      const bytes = Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
+      return new Blob([bytes], { type: mime });
+    };
+
+    const seedDone = new Promise<void>((resolve, reject) => {
+      const request = indexedDB.open("grok-studio-gallery", 1);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains("images")) {
+          const store = db.createObjectStore("images", { keyPath: "id" });
+          store.createIndex("createdAt", "createdAt");
+          store.createIndex("sceneName", "sceneName");
+          store.createIndex("character", "character");
+        }
+      };
+      request.onsuccess = () => {
+        const db = request.result;
+        const tx = db.transaction("images", "readwrite");
+        const store = tx.objectStore("images");
+        for (const item of seed as SeedItem[]) {
+          const isVideo = item.type === "video";
+          const mimeType = isVideo ? "video/mp4" : "image/png";
+          const blob = toBlob(PNG, mimeType);
+          store.put({
+            ...item,
+            blob,
+            mimeType,
+            type: item.type ?? "image",
+            size: item.size ?? 1024,
+            createdAt: Date.now() - (item.ageDays ?? 0) * 86_400_000,
+          });
+        }
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+      };
+      request.onerror = () => reject(request.error);
+    });
+
+    // The seed and the app's own first read are not ordered relative to each
+    // other, so instead of trying to win the race, announce the write. If the
+    // seed commits first the initial listGallery() already sees it; if it
+    // commits later this event makes the page re-read. Either order works.
+    void seedDone
+      .then(() => window.dispatchEvent(new CustomEvent("grok-gallery-changed")))
+      .catch((err) => console.warn("[e2e] gallery seed failed", err));
+  }, items);
+}
+
 export type ConsoleTrap = { errors: string[] };
 
 // React key warnings, hydration mismatches and thrown effects all surface here.

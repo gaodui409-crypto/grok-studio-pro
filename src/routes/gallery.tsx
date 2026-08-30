@@ -1,24 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  Images,
-  Trash2,
-  Download,
-  Copy,
-  Maximize2,
-  CheckSquare,
-  Square,
-  AlertTriangle,
-  Play,
-  ChevronLeft,
-  ChevronRight,
-} from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Trash2, Download, Search, AlertTriangle, CheckSquare, Square } from "lucide-react";
 import { toast } from "sonner";
 import JSZip from "jszip";
 import { saveBlob } from "@/lib/download";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -26,7 +13,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,18 +25,20 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Progress } from "@/components/ui/progress";
-import { PageHeader } from "@/components/page-header";
+import { GalleryFacetNav } from "@/components/gallery/gallery-facet-nav";
+import { GalleryCard } from "@/components/gallery/gallery-card";
+import { GalleryPreview } from "@/components/gallery/gallery-preview";
+import { useGalleryItems } from "@/hooks/use-gallery-items";
+import { useObjectUrls } from "@/hooks/use-object-urls";
 import {
-  listGallery,
-  getGalleryItem,
-  deleteGalleryItems,
-  clearGallery,
-  getStorageEstimate,
-  formatBytes,
-  type GalleryMeta,
-} from "@/lib/gallery-db";
-import { cn } from "@/lib/utils";
-import { ObjectUrlRegistry } from "@/lib/object-url-registry";
+  applyFilter,
+  computeFacets,
+  emptyFilter,
+  isFiltered,
+  type GalleryFilter,
+  type SortOrder,
+} from "@/lib/gallery-filter";
+import { getGalleryItem, deleteGalleryItems, clearGallery } from "@/lib/gallery-db";
 
 export const Route = createFileRoute("/gallery")({
   head: () => ({
@@ -62,6 +50,14 @@ export const Route = createFileRoute("/gallery")({
   component: GalleryPage,
 });
 
+const PAGE_SIZE = 48;
+
+const SORT_LABELS: Record<SortOrder, string> = {
+  newest: "最新优先",
+  oldest: "最早优先",
+  largest: "体积最大",
+};
+
 function extOf(mime: string, type?: string) {
   if (type === "video") return "mp4";
   const sub = mime.split("/")[1] || "png";
@@ -69,111 +65,49 @@ function extOf(mime: string, type?: string) {
 }
 
 function GalleryPage() {
-  const urlRegistryRef = useRef<ObjectUrlRegistry | null>(null);
-  if (!urlRegistryRef.current) {
-    urlRegistryRef.current = new ObjectUrlRegistry(
-      (blob) => URL.createObjectURL(blob),
-      (url) => URL.revokeObjectURL(url),
-    );
-  }
-  const urlRegistry = urlRegistryRef.current;
-  const [items, setItems] = useState<GalleryMeta[]>([]);
-  const [storage, setStorage] = useState<{ usage: number; quota: number } | null>(null);
+  const { items, storage, ready, error, refresh } = useGalleryItems();
+  const [filter, setFilter] = useState<GalleryFilter>(emptyFilter);
+  const [sort, setSort] = useState<SortOrder>("newest");
+  const [limit, setLimit] = useState(PAGE_SIZE);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [urlCache, setUrlCache] = useState<Record<string, string>>({});
   const [previewId, setPreviewId] = useState<string | null>(null);
-  const [filterScene, setFilterScene] = useState<string>("all");
-  const [filterChar, setFilterChar] = useState<string>("all");
-  const [filterType, setFilterType] = useState<string>("all");
-  const [search, setSearch] = useState("");
+  const [zipping, setZipping] = useState(false);
+  const [zipProgress, setZipProgress] = useState(0);
+  const [showCleanupAfter, setShowCleanupAfter] = useState(false);
 
-  const refresh = async () => {
-    const list = await listGallery();
-    setItems(list);
-    setStorage(await getStorageEstimate());
-  };
+  const filtered = useMemo(() => applyFilter(items, filter, sort), [items, filter, sort]);
+  const facets = useMemo(() => computeFacets(items, filter), [items, filter]);
+  const visible = useMemo(() => filtered.slice(0, limit), [filtered, limit]);
+  const urls = useObjectUrls(useMemo(() => visible.map((item) => item.id), [visible]));
 
-  useEffect(() => {
-    refresh();
-    const h = () => refresh();
-    window.addEventListener("grok-gallery-changed", h);
-    return () => window.removeEventListener("grok-gallery-changed", h);
-  }, []);
+  // A narrower filter can leave the offset past the end of the new result set,
+  // which would render an empty grid under a non-zero count.
+  useEffect(() => setLimit(PAGE_SIZE), [filter, sort]);
 
-  useEffect(() => {
-    let cancelled = false;
-    const currentIds = new Set(items.map((item) => item.id));
-    urlRegistry.reconcile(currentIds);
-    setUrlCache(urlRegistry.snapshot());
+  const patchFilter = (patch: Partial<GalleryFilter>) =>
+    setFilter((current) => ({ ...current, ...patch }));
 
-    (async () => {
-      for (const item of items) {
-        if (urlRegistry.has(item.id)) continue;
-        const full = await getGalleryItem(item.id);
-        if (cancelled || !full) continue;
-        urlRegistry.register(item.id, full.blob);
-        setUrlCache(urlRegistry.snapshot());
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [items, urlRegistry]);
-
-  useEffect(() => () => urlRegistry.dispose(), [urlRegistry]);
-
-  const scenes = useMemo(
-    () => Array.from(new Set(items.map((i) => i.sceneName).filter(Boolean))) as string[],
-    [items],
-  );
-  const chars = useMemo(
-    () => Array.from(new Set(items.map((i) => i.character).filter(Boolean))) as string[],
-    [items],
-  );
-
-  const typeOf = (i: GalleryMeta): "image" | "video" =>
-    i.type ?? (i.mimeType?.startsWith("video/") ? "video" : "image");
-
-  const filtered = useMemo(
-    () =>
-      items.filter((i) => {
-        if (filterScene !== "all" && i.sceneName !== filterScene) return false;
-        if (filterChar !== "all" && i.character !== filterChar) return false;
-        if (filterType !== "all" && typeOf(i) !== filterType) return false;
-        if (search.trim() && !i.prompt.toLowerCase().includes(search.toLowerCase())) return false;
-        return true;
-      }),
-    [items, filterScene, filterChar, filterType, search],
-  );
-
-  const allSelected = filtered.length > 0 && filtered.every((i) => selected.has(i.id));
-  const toggleAll = () => {
-    if (allSelected) setSelected(new Set());
-    else setSelected(new Set(filtered.map((i) => i.id)));
-  };
-  const toggleOne = (id: string) => {
-    const next = new Set(selected);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    setSelected(next);
-  };
+  const allSelected = filtered.length > 0 && filtered.every((item) => selected.has(item.id));
+  const toggleAll = () =>
+    setSelected(allSelected ? new Set() : new Set(filtered.map((item) => item.id)));
+  const toggleOne = (id: string) =>
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   const downloadOne = async (id: string) => {
     const full = await getGalleryItem(id);
     if (!full) return;
-    const ext = extOf(full.mimeType, full.type);
-    saveBlob(full.blob, `grok-${id}.${ext}`);
+    saveBlob(full.blob, `grok-${id}.${extOf(full.mimeType, full.type)}`);
   };
 
   const copyPrompt = async (prompt: string) => {
     await navigator.clipboard.writeText(prompt);
     toast.success("提示词已复制");
   };
-
-  const [zipping, setZipping] = useState(false);
-  const [zipProgress, setZipProgress] = useState(0);
-  const [showCleanupAfter, setShowCleanupAfter] = useState(false);
 
   const downloadSelectedZip = async () => {
     if (!selected.size) return toast.error("请先勾选项目");
@@ -184,15 +118,13 @@ function GalleryPage() {
     for (let i = 0; i < ids.length; i++) {
       const full = await getGalleryItem(ids[i]);
       if (full) {
-        const ext = extOf(full.mimeType, full.type);
         const folder = full.type === "video" ? "videos" : full.sceneName || "images";
-        const safe = folder.replace(/[^\w\u4e00-\u9fa5-]/g, "_");
-        zip.file(`${safe}/${full.id}.${ext}`, full.blob);
+        const safe = folder.replace(/[^\w一-龥-]/g, "_");
+        zip.file(`${safe}/${full.id}.${extOf(full.mimeType, full.type)}`, full.blob);
       }
       setZipProgress(Math.round(((i + 1) / ids.length) * 100));
     }
-    const blob = await zip.generateAsync({ type: "blob" });
-    saveBlob(blob, `grok-gallery-${Date.now()}.zip`);
+    saveBlob(await zip.generateAsync({ type: "blob" }), `grok-gallery-${Date.now()}.zip`);
     setZipping(false);
     setShowCleanupAfter(true);
   };
@@ -202,343 +134,209 @@ function GalleryPage() {
     await deleteGalleryItems(Array.from(selected));
     setSelected(new Set());
     toast.success("已删除选中项目");
-    refresh();
+    await refresh();
   };
 
-  const openPreview = (id: string) => setPreviewId(id);
-
-  const previewIndex = useMemo(
-    () => (previewId ? filtered.findIndex((i) => i.id === previewId) : -1),
-    [previewId, filtered],
-  );
-  const previewItem = previewIndex >= 0 ? filtered[previewIndex] : null;
-  const previewUrl = previewItem ? urlCache[previewItem.id] : null;
-  const previewType = previewItem ? typeOf(previewItem) : "image";
+  // Preview walks the loaded page, not the whole filtered set: past the page
+  // boundary there is no object URL yet, so arrow keys would land on a blank.
+  const previewIndex = previewId ? visible.findIndex((item) => item.id === previewId) : -1;
+  const previewItem = previewIndex >= 0 ? visible[previewIndex] : null;
 
   const navigatePreview = useCallback(
-    (dir: -1 | 1) => {
-      if (previewIndex < 0 || !filtered.length) return;
-      const next = (previewIndex + dir + filtered.length) % filtered.length;
-      setPreviewId(filtered[next].id);
+    (direction: -1 | 1) => {
+      if (previewIndex < 0 || !visible.length) return;
+      const next = (previewIndex + direction + visible.length) % visible.length;
+      setPreviewId(visible[next].id);
     },
-    [previewIndex, filtered],
+    [previewIndex, visible],
   );
 
-  useEffect(() => {
-    if (!previewId) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "ArrowLeft") navigatePreview(-1);
-      else if (e.key === "ArrowRight") navigatePreview(1);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [previewId, navigatePreview]);
+  const remaining = filtered.length - visible.length;
+  // Nothing stored means nothing to filter, sort or select. The facet nav would
+  // be a column of zeros and the toolbar a row of disabled buttons, so both stay
+  // out of the way until there is something to act on.
+  const hasArchive = items.length > 0;
 
   return (
-    <div className="mx-auto max-w-[1500px] px-4 py-8 md:px-8">
-      <PageHeader
-        title="画廊"
-        description="所有生成的图片与视频永久保存在浏览器（IndexedDB），关闭页面也不会丢失。"
-        icon={Images}
-      />
-
-      {storage && storage.quota > 0 && (
-        <div className="mb-4 rounded-xl border border-border/60 bg-card p-3 text-xs">
-          <div className="mb-1 flex items-center justify-between">
-            <span className="text-muted-foreground">浏览器存储用量</span>
-            <span className="font-mono">
-              {formatBytes(storage.usage)} / {formatBytes(storage.quota)}
-            </span>
-          </div>
-          <Progress value={(storage.usage / storage.quota) * 100} />
-        </div>
+    <div className="flex min-h-[calc(100vh-3.5rem)]">
+      {hasArchive && (
+        <GalleryFacetNav
+          facets={facets}
+          filter={filter}
+          onChange={patchFilter}
+          storage={storage}
+          selectedCount={selected.size}
+          onClearSelection={() => setSelected(new Set())}
+        />
       )}
 
-      <div className="mb-4 flex flex-wrap items-end gap-3 rounded-xl border border-border/60 bg-card p-4">
-        <div className="space-y-1">
-          <Label className="text-xs uppercase tracking-wider text-muted-foreground">类型</Label>
-          <Select value={filterType} onValueChange={setFilterType}>
-            <SelectTrigger className="w-28">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">全部</SelectItem>
-              <SelectItem value="image">图片</SelectItem>
-              <SelectItem value="video">视频</SelectItem>
-            </SelectContent>
-          </Select>
+      <div className="min-w-0 flex-1 px-6 py-6">
+        <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-xs text-muted-foreground">
+              画廊 · {isFiltered(filter) ? "筛选结果" : "全部"}
+            </p>
+            <h1 className="font-display text-2xl font-semibold tracking-tight md:text-3xl">
+              {isFiltered(filter) ? "筛选结果" : "全部生成结果"} {filtered.length} 项
+            </h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              IndexedDB 永久归档 · 关闭页面不丢 · 支持批量打包下载
+            </p>
+          </div>
+
+          {hasArchive && (
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={filter.search}
+                  onChange={(event) => patchFilter({ search: event.target.value })}
+                  placeholder="搜索提示词…"
+                  aria-label="搜索提示词"
+                  className="h-9 w-56 pl-9"
+                />
+              </div>
+              <Select value={sort} onValueChange={(value) => setSort(value as SortOrder)}>
+                <SelectTrigger className="h-9 w-40" aria-label="排序方式">
+                  <SelectValue placeholder={SORT_LABELS[sort]} />
+                </SelectTrigger>
+                <SelectContent>
+                  {(Object.keys(SORT_LABELS) as SortOrder[]).map((value) => (
+                    <SelectItem key={value} value={value}>
+                      排序：{SORT_LABELS[value]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button variant="ghost" size="sm" onClick={toggleAll} disabled={!filtered.length}>
+                {allSelected ? (
+                  <CheckSquare className="mr-1 h-4 w-4" />
+                ) : (
+                  <Square className="mr-1 h-4 w-4" />
+                )}
+                {allSelected ? "取消全选" : `全选 (${filtered.length})`}
+              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    disabled={!items.length}
+                    className="text-destructive hover:text-destructive"
+                  >
+                    <AlertTriangle className="mr-1 h-4 w-4" /> 清空全部
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>清空整个画廊？</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      将删除全部 {items.length} 个项目，此操作不可撤销。
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>取消</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={async () => {
+                        await clearGallery();
+                        setSelected(new Set());
+                        await refresh();
+                        toast.success("画廊已清空");
+                      }}
+                    >
+                      确认清空
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          )}
         </div>
-        <div className="space-y-1">
-          <Label className="text-xs uppercase tracking-wider text-muted-foreground">场景</Label>
-          <Select value={filterScene} onValueChange={setFilterScene}>
-            <SelectTrigger className="w-36">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">全部场景</SelectItem>
-              {scenes.map((s) => (
-                <SelectItem key={s} value={s}>
-                  {s}
-                </SelectItem>
+
+        {error && (
+          <div className="mb-4 rounded-xl border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+            读取画廊失败：{error}
+          </div>
+        )}
+
+        {zipping && (
+          <div className="mb-4 space-y-2 rounded-xl border border-border/60 bg-card p-3 text-xs">
+            <div className="flex justify-between">
+              <span>打包中…</span>
+              <span className="font-mono">{zipProgress}%</span>
+            </div>
+            <Progress value={zipProgress} />
+          </div>
+        )}
+
+        {visible.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-border/60 bg-card/50 p-12 text-center text-sm text-muted-foreground">
+            {!ready
+              ? "正在读取本地归档…"
+              : items.length === 0
+                ? "还没有内容，去生成一些吧～"
+                : "当前筛选条件下没有内容"}
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+              {visible.map((item) => (
+                <GalleryCard
+                  key={item.id}
+                  item={item}
+                  url={urls[item.id]}
+                  selected={selected.has(item.id)}
+                  onToggleSelect={() => toggleOne(item.id)}
+                  onPreview={() => setPreviewId(item.id)}
+                  onCopyPrompt={() => void copyPrompt(item.prompt)}
+                  onDownload={() => void downloadOne(item.id)}
+                  onDelete={async () => {
+                    await deleteGalleryItems([item.id]);
+                    await refresh();
+                  }}
+                />
               ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1">
-          <Label className="text-xs uppercase tracking-wider text-muted-foreground">角色</Label>
-          <Select value={filterChar} onValueChange={setFilterChar}>
-            <SelectTrigger className="w-36">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">全部角色</SelectItem>
-              {chars.map((c) => (
-                <SelectItem key={c} value={c}>
-                  {c}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="min-w-[180px] flex-1 space-y-1">
-          <Label className="text-xs uppercase tracking-wider text-muted-foreground">
-            搜索提示词
-          </Label>
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="关键词…"
-            className="h-9"
-          />
-        </div>
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={toggleAll}>
-            {allSelected ? (
-              <CheckSquare className="mr-1 h-4 w-4" />
-            ) : (
-              <Square className="mr-1 h-4 w-4" />
+            </div>
+
+            {remaining > 0 && (
+              <div className="mt-4">
+                <Button
+                  variant="outline"
+                  className="w-full border-dashed"
+                  onClick={() => setLimit((current) => current + PAGE_SIZE)}
+                >
+                  加载更多（剩余 {remaining} 项）
+                </Button>
+              </div>
             )}
-            {allSelected ? "取消全选" : "全选"}
-          </Button>
-          <Button
-            size="sm"
-            variant="secondary"
-            disabled={!selected.size || zipping}
-            onClick={downloadSelectedZip}
-          >
-            <Download className="mr-1 h-4 w-4" /> 打包下载 ({selected.size})
-          </Button>
+          </>
+        )}
+      </div>
+
+      {selected.size > 0 && (
+        <div className="fixed bottom-6 right-6 z-40 flex items-center gap-2 rounded-xl border border-border/60 bg-card/95 p-2 shadow-glow backdrop-blur">
           <Button
             size="sm"
             variant="ghost"
-            disabled={!selected.size}
-            onClick={deleteSelected}
+            onClick={() => void deleteSelected()}
             className="text-destructive hover:text-destructive"
           >
-            <Trash2 className="mr-1 h-4 w-4" /> 删除选中
+            <Trash2 className="mr-1 h-4 w-4" /> 删除选中 ({selected.size})
           </Button>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive">
-                <AlertTriangle className="mr-1 h-4 w-4" /> 清空全部
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>清空整个画廊？</AlertDialogTitle>
-                <AlertDialogDescription>
-                  将删除全部 {items.length} 个项目，此操作不可撤销。
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>取消</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={async () => {
-                    await clearGallery();
-                    setSelected(new Set());
-                    refresh();
-                    toast.success("画廊已清空");
-                  }}
-                >
-                  确认清空
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </div>
-      </div>
-
-      {zipping && (
-        <div className="mb-4 space-y-2 rounded-xl border border-border/60 bg-card p-3 text-xs">
-          <div className="flex justify-between">
-            <span>打包中…</span>
-            <span className="font-mono">{zipProgress}%</span>
-          </div>
-          <Progress value={zipProgress} />
+          <Button size="sm" disabled={zipping} onClick={() => void downloadSelectedZip()}>
+            <Download className="mr-1 h-4 w-4" /> 打包下载 ({selected.size})
+          </Button>
         </div>
       )}
 
-      {filtered.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-border/60 bg-card/50 p-12 text-center text-sm text-muted-foreground">
-          {items.length === 0 ? "还没有内容，去生成一些吧～" : "当前筛选条件下没有内容"}
-        </div>
-      ) : (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-          {filtered.map((it) => {
-            const url = urlCache[it.id];
-            const isSel = selected.has(it.id);
-            const t = typeOf(it);
-            return (
-              <div
-                key={it.id}
-                className={cn(
-                  "group relative overflow-hidden rounded-xl border bg-card transition",
-                  isSel ? "border-primary shadow-glow" : "border-border/60 hover:border-primary/40",
-                )}
-              >
-                <button
-                  onClick={() => toggleOne(it.id)}
-                  className="absolute left-2 top-2 z-10 rounded-md bg-background/80 p-1 backdrop-blur"
-                >
-                  {isSel ? (
-                    <CheckSquare className="h-4 w-4 text-primary-glow" />
-                  ) : (
-                    <Square className="h-4 w-4" />
-                  )}
-                </button>
-                {t === "video" && (
-                  <span className="absolute right-2 top-2 z-10 rounded-md bg-background/80 px-1.5 py-0.5 text-[10px] font-mono backdrop-blur">
-                    VIDEO{it.duration ? ` · ${it.duration}s` : ""}
-                  </span>
-                )}
-                {url ? (
-                  t === "video" ? (
-                    <div
-                      className="relative aspect-square w-full cursor-pointer bg-black"
-                      onClick={() => openPreview(it.id)}
-                    >
-                      <video
-                        src={url}
-                        muted
-                        playsInline
-                        preload="metadata"
-                        className="h-full w-full object-cover"
-                      />
-                      <div className="absolute inset-0 flex items-center justify-center bg-black/30">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/90 shadow-glow">
-                          <Play className="h-6 w-6 fill-primary-foreground text-primary-foreground" />
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <img
-                      src={url}
-                      alt={it.prompt}
-                      className="aspect-square w-full object-cover"
-                      loading="lazy"
-                    />
-                  )
-                ) : (
-                  <div className="aspect-square w-full animate-pulse bg-surface" />
-                )}
-                <div className="space-y-1 p-2 text-[11px]">
-                  <div className="flex items-center justify-between text-muted-foreground">
-                    <span className="truncate">{it.sceneName || "—"}</span>
-                    <span className="font-mono">{formatBytes(it.size)}</span>
-                  </div>
-                  {it.provider && (
-                    <div className="inline-flex rounded-full border border-border/60 bg-surface px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                      {it.provider}
-                    </div>
-                  )}
-                  <p className="line-clamp-2 text-foreground/80">{it.prompt}</p>
-                </div>
-                <div className="absolute inset-x-0 bottom-0 flex justify-end gap-1 bg-gradient-to-t from-background/95 to-transparent p-2 opacity-0 transition group-hover:opacity-100">
-                  <Button
-                    size="icon"
-                    variant="secondary"
-                    className="h-7 w-7"
-                    onClick={() => openPreview(it.id)}
-                  >
-                    <Maximize2 className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="secondary"
-                    className="h-7 w-7"
-                    onClick={() => copyPrompt(it.prompt)}
-                  >
-                    <Copy className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="secondary"
-                    className="h-7 w-7"
-                    onClick={() => downloadOne(it.id)}
-                  >
-                    <Download className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="secondary"
-                    className="h-7 w-7 text-destructive"
-                    onClick={async () => {
-                      await deleteGalleryItems([it.id]);
-                      refresh();
-                    }}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      <Dialog open={!!previewId} onOpenChange={(o) => !o && setPreviewId(null)}>
-        <DialogContent className="max-w-5xl border-border/60 bg-background p-2">
-          <DialogTitle className="sr-only">预览</DialogTitle>
-          <div className="relative">
-            {previewUrl && previewType === "image" && (
-              <img
-                src={previewUrl}
-                alt="预览"
-                className="max-h-[85vh] w-full rounded-lg object-contain"
-              />
-            )}
-            {previewUrl && previewType === "video" && (
-              <video
-                src={previewUrl}
-                controls
-                autoPlay
-                className="max-h-[85vh] w-full rounded-lg"
-              />
-            )}
-            {filtered.length > 1 && (
-              <>
-                <button
-                  onClick={() => navigatePreview(-1)}
-                  className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-background/80 p-2 backdrop-blur hover:bg-background"
-                  aria-label="上一张"
-                >
-                  <ChevronLeft className="h-5 w-5" />
-                </button>
-                <button
-                  onClick={() => navigatePreview(1)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-background/80 p-2 backdrop-blur hover:bg-background"
-                  aria-label="下一张"
-                >
-                  <ChevronRight className="h-5 w-5" />
-                </button>
-                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-background/85 px-3 py-1 text-xs font-mono backdrop-blur">
-                  {previewIndex + 1} / {filtered.length}
-                </div>
-              </>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+      <GalleryPreview
+        item={previewItem}
+        url={previewItem ? urls[previewItem.id] : undefined}
+        index={previewIndex}
+        total={visible.length}
+        onNavigate={navigatePreview}
+        onClose={() => setPreviewId(null)}
+      />
 
       <AlertDialog open={showCleanupAfter} onOpenChange={setShowCleanupAfter}>
         <AlertDialogContent>
@@ -555,7 +353,7 @@ function GalleryPage() {
                 await deleteGalleryItems(Array.from(selected));
                 setSelected(new Set());
                 setShowCleanupAfter(false);
-                refresh();
+                await refresh();
                 toast.success("已清除已下载内容");
               }}
             >
