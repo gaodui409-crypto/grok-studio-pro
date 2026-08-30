@@ -19,7 +19,13 @@ export function SecretInput({
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
-  /** Used in the toggle's accessible name, e.g. "显示 xAI API Key". */
+  /**
+   * Names both the field and its toggle ("显示 xAI API Key").
+   *
+   * The input carries it as aria-label because the visible <Label> beside it is
+   * not associated via htmlFor — without this, a screen reader announces these
+   * credential fields as an unlabelled text box.
+   */
   label?: string;
 }) {
   const [visible, setVisible] = useState(false);
@@ -30,6 +36,7 @@ export function SecretInput({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
+        aria-label={label}
         className="pr-10 font-mono"
         autoComplete="off"
         spellCheck={false}
