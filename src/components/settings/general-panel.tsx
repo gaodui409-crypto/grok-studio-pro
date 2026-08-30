@@ -1,4 +1,3 @@
-import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { AspectRatioSelect, ResolutionSelect } from "@/components/param-selects";
 import type { ResolutionTier, Settings } from "@/lib/settings";
@@ -12,47 +11,54 @@ import type { ResolutionTier, Settings } from "@/lib/settings";
 // quietly misreport the scale.
 const TICKS = [1, 10];
 
-export function GeneralPanel({
-  draft,
-  patch,
-}: {
+type PanelProps = {
   draft: Settings;
   patch: (patch: Partial<Settings>) => void;
-}) {
-  return (
-    <div className="space-y-6">
-      <div className="grid gap-2 md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)] md:gap-6">
-        <div className="space-y-1">
-          <Label>并发请求数</Label>
-          <p className="text-xs leading-relaxed text-muted-foreground">
-            同人图批量、漫画上色、漫画翻译均使用此并发数。共享免费渠道或同时运行其他会话时建议设为
-            1。
-          </p>
-        </div>
-        <div className="space-y-2">
-          <div className="flex items-center gap-4">
-            <Slider
-              min={1}
-              max={10}
-              step={1}
-              value={[draft.concurrency]}
-              onValueChange={(v) => patch({ concurrency: v[0] })}
-              aria-label="并发请求数"
-              className="flex-1"
-            />
-            <span className="w-12 shrink-0 rounded-md border border-border/60 bg-surface py-1 text-center font-mono text-sm text-primary-glow">
-              {draft.concurrency}
-            </span>
-          </div>
-          <div className="flex justify-between pr-16 text-[11px] text-muted-foreground">
-            {TICKS.map((tick) => (
-              <span key={tick}>{tick}</span>
-            ))}
-          </div>
-        </div>
-      </div>
+};
 
-      <div className="grid gap-4 md:grid-cols-2">
+/**
+ * How many requests run at once.
+ *
+ * Its own card because it governs pacing against the vendor, while the fields in
+ * ImageDefaultsPanel describe the picture you want — mixing them meant one card
+ * with two unrelated subjects.
+ */
+export function ConcurrencyPanel({ draft, patch }: PanelProps) {
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-4">
+        <Slider
+          min={1}
+          max={10}
+          step={1}
+          value={[draft.concurrency]}
+          onValueChange={(v) => patch({ concurrency: v[0] })}
+          aria-label="并发请求数"
+          className="flex-1"
+        />
+        <span className="w-14 shrink-0 rounded-md border border-border/60 bg-surface py-1 text-center font-mono text-sm text-primary-glow">
+          {draft.concurrency}
+        </span>
+      </div>
+      {/* pr-16 keeps the ticks aligned with the track, which stops short of the
+          value readout to its right. */}
+      <div className="flex justify-between pr-[4.5rem] text-[11px] text-muted-foreground">
+        {TICKS.map((tick) => (
+          <span key={tick}>{tick}</span>
+        ))}
+      </div>
+      <p className="text-xs leading-relaxed text-muted-foreground">
+        同人图批量、漫画上色、漫画翻译均使用此并发数。共享免费渠道或同时运行其他会话时建议设为 1。
+      </p>
+    </div>
+  );
+}
+
+/** Starting values for new tasks on every channel. */
+export function ImageDefaultsPanel({ draft, patch }: PanelProps) {
+  return (
+    <div className="space-y-4">
+      <div className="grid gap-4 sm:grid-cols-2">
         <AspectRatioSelect
           value={draft.defaultAspectRatio}
           onChange={(defaultAspectRatio) => patch({ defaultAspectRatio })}

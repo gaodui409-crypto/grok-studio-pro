@@ -56,7 +56,11 @@ const ARCHIVE: SeedItem[] = [
   },
 ];
 
-const heading = (page: import("@playwright/test").Page) => page.getByRole("heading", { level: 1 });
+// The count lives in a status line under the h1, not in the heading itself: at
+// 30px display type it was shouting a number that changes on every keystroke.
+// role=status also means a filter change is announced rather than silently
+// re-rendered.
+const count = (page: import("@playwright/test").Page) => page.getByRole("status");
 
 test.describe("画廊 · 有内容", () => {
   test.beforeEach(async ({ page }) => {
@@ -67,7 +71,7 @@ test.describe("画廊 · 有内容", () => {
     const trap = trapConsole(page);
     await page.goto("/gallery");
 
-    await expect(heading(page)).toContainText("全部生成结果 6 项");
+    await expect(count(page)).toContainText("全部生成结果 6 项");
     // One card per record.
     await expect(page.getByRole("button", { name: "放大预览" })).toHaveCount(6);
     // The video badge marks the one non-image record.
@@ -87,7 +91,7 @@ test.describe("画廊 · 有内容", () => {
     await expect(nav.getByRole("button", { name: /^视频/ })).toContainText("1");
 
     await nav.getByRole("button", { name: /^视频/ }).click();
-    await expect(heading(page)).toContainText("筛选结果 1 项");
+    await expect(count(page)).toContainText("筛选结果 1 项");
     await expect(page.getByRole("button", { name: "放大预览" })).toHaveCount(1);
   });
 
@@ -96,7 +100,7 @@ test.describe("画廊 · 有内容", () => {
     const nav = page.getByRole("navigation", { name: "画廊筛选" });
 
     await nav.getByRole("button", { name: /^校园/ }).click();
-    await expect(heading(page)).toContainText("筛选结果 3 项");
+    await expect(count(page)).toContainText("筛选结果 3 项");
 
     // The point of relaxed facet counts: 温泉 still reports its own total while
     // 校园 is selected, so the sidebar stays navigable instead of showing zeros.
@@ -104,7 +108,7 @@ test.describe("画廊 · 有内容", () => {
 
     // Scene AND character compose.
     await nav.getByRole("button", { name: /^银发少女/ }).click();
-    await expect(heading(page)).toContainText("筛选结果 1 项");
+    await expect(count(page)).toContainText("筛选结果 1 项");
   });
 
   test("时间筛选排除超出窗口的旧条目", async ({ page }) => {
@@ -112,7 +116,7 @@ test.describe("画廊 · 有内容", () => {
     const nav = page.getByRole("navigation", { name: "画廊筛选" });
 
     await nav.getByRole("button", { name: "近 7 天" }).click();
-    await expect(heading(page)).toContainText("筛选结果 5 项");
+    await expect(count(page)).toContainText("筛选结果 5 项");
   });
 
   test("搜索命中提示词与场景", async ({ page }) => {
@@ -120,10 +124,10 @@ test.describe("画廊 · 有内容", () => {
     const search = page.getByLabel("搜索提示词");
 
     await search.fill("温泉");
-    await expect(heading(page)).toContainText("筛选结果 2 项");
+    await expect(count(page)).toContainText("筛选结果 2 项");
 
     await search.fill("樱花");
-    await expect(heading(page)).toContainText("筛选结果 1 项");
+    await expect(count(page)).toContainText("筛选结果 1 项");
 
     await search.fill("不存在的关键词");
     await expect(page.getByText("当前筛选条件下没有内容")).toBeVisible();
@@ -171,7 +175,7 @@ test.describe("画廊 · 分页", () => {
   test("首屏只渲染一页，加载更多补齐剩余", async ({ page }) => {
     await page.goto("/gallery");
 
-    await expect(heading(page)).toContainText("全部生成结果 60 项");
+    await expect(count(page)).toContainText("全部生成结果 60 项");
     // The count is the whole archive; the grid is one page of it. This is also
     // what bounds memory — only rendered cards hold an object URL.
     await expect(page.getByRole("button", { name: "放大预览" })).toHaveCount(48);
@@ -195,8 +199,82 @@ test.describe("画廊 · 分页", () => {
       .getByRole("navigation", { name: "画廊筛选" })
       .getByRole("button", { name: /^校园/ })
       .click();
-    await expect(heading(page)).toContainText("筛选结果 30 项");
+    await expect(count(page)).toContainText("筛选结果 30 项");
     await expect(page.getByRole("button", { name: "放大预览" })).toHaveCount(30);
     await expect(page.getByRole("button", { name: /加载更多/ })).toHaveCount(0);
+  });
+});
+
+/**
+ * How much of the first cover's source image actually reaches the screen.
+ *
+ * The scale is derived from the *computed* object-fit rather than assumed, which
+ * matters more than it sounds: an earlier version of this helper always used the
+ * contain formula, so it reported "nothing cropped" no matter what the CSS said
+ * and both tests below passed against the very bug they were written for.
+ *
+ * `shown` is per-axis rendered size over box size — above 1 means that axis
+ * overflows the box and is clipped.
+ */
+async function coverFit(page: import("@playwright/test").Page) {
+  return page
+    .locator("img[alt]")
+    .first()
+    .evaluate((el) => {
+      const img = el as HTMLImageElement;
+      const box = el.getBoundingClientRect();
+      const objectFit = getComputedStyle(el).objectFit;
+      const byWidth = box.width / img.naturalWidth;
+      const byHeight = box.height / img.naturalHeight;
+      const scale =
+        objectFit === "cover"
+          ? Math.max(byWidth, byHeight)
+          : objectFit === "contain"
+            ? Math.min(byWidth, byHeight)
+            : objectFit === "none"
+              ? 1
+              : NaN; // fill / scale-down: not used here, and averaging them would lie
+      return {
+        objectFit,
+        natural: { w: img.naturalWidth, h: img.naturalHeight },
+        shownWidth: (img.naturalWidth * scale) / box.width,
+        shownHeight: (img.naturalHeight * scale) / box.height,
+      };
+    });
+}
+
+test.describe("画廊 · 封面完整性", () => {
+  // A 3:8 cover in a 3:4 box is the worst case for cropping: object-cover scales
+  // it to fill the width and throws away more than half the height. The reported
+  // symptom was exactly that — a portrait cover you could not identify without
+  // opening it.
+  test("竖图封面完整显示，不被裁掉上下两端", async ({ page }) => {
+    await seedGallery(page, [{ id: "p1", prompt: "竖向封面", shape: "portrait" }]);
+    await page.goto("/gallery");
+    await page.waitForFunction(() => document.documentElement.dataset.hydrated === "1");
+
+    const fit = await coverFit(page);
+
+    // Guards the fixture: a 1×1 pixel would satisfy everything below while
+    // proving nothing, because at 1×1 every fit mode agrees.
+    expect(fit.natural).toEqual({ w: 72, h: 192 });
+    // Neither axis overflows, so no edge is cut. Height reaching exactly 1 is
+    // what says the cover is scaled to fit rather than left small.
+    expect(fit.shownHeight).toBeCloseTo(1, 2);
+    expect(fit.shownWidth).toBeLessThanOrEqual(1.001);
+  });
+
+  test("横图封面也完整显示", async ({ page }) => {
+    await seedGallery(page, [{ id: "l1", prompt: "横向封面", shape: "landscape" }]);
+    await page.goto("/gallery");
+    await page.waitForFunction(() => document.documentElement.dataset.hydrated === "1");
+
+    const fit = await coverFit(page);
+
+    expect(fit.natural).toEqual({ w: 192, h: 72 });
+    // The trade for keeping portraits whole: a wide cover gets bars above and
+    // below rather than losing its sides.
+    expect(fit.shownWidth).toBeCloseTo(1, 2);
+    expect(fit.shownHeight).toBeLessThanOrEqual(1.001);
   });
 });

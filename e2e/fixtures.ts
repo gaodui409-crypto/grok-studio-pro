@@ -36,6 +36,17 @@ export type SeedItem = {
   type?: "image" | "video";
   ageDays?: number;
   size?: number;
+  /**
+   * Which stand-in bitmap to store.
+   *
+   * Default is a 1×1 pixel, which is enough for anything that only counts cards.
+   * It cannot show a cropping bug though: at 1×1 every fit mode looks identical,
+   * so the card could have been cutting a third off every portrait cover and the
+   * whole suite would still have passed. "portrait" and "landscape" are 3:8 and
+   * 8:3 with white bands along the two long edges, so a render that loses an edge
+   * is measurably different from one that keeps it.
+   */
+  shape?: "pixel" | "portrait" | "landscape";
 };
 
 /**
@@ -47,8 +58,15 @@ export type SeedItem = {
  */
 export async function seedGallery(page: Page, items: SeedItem[]) {
   await page.addInitScript((seed) => {
-    const PNG =
-      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==";
+    // 1×1, 72×192 and 192×72. See SeedItem.shape for why the non-square ones exist.
+    const PNGS = {
+      pixel:
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==",
+      portrait:
+        "iVBORw0KGgoAAAANSUhEUgAAAEgAAADACAIAAAAobLKlAAAAxklEQVR42u3PAQ0AMAgEMeRME9rnBWyQTy9noDWhFRgYGBgYGBgYGBgY2HHYfx05GBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGBgYGNhJ2IQGBgYGBgYGBgYGBpbSAo8q+2JA4atQAAAAAElFTkSuQmCC",
+      landscape:
+        "iVBORw0KGgoAAAANSUhEUgAAAMAAAABICAIAAAAvXW3lAAAApElEQVR42u3SQREAMAgDQeQgsWLrhWqgPNnMKshclNlg4QITkAnIBGQCMmsGlOfCNwEhIASEgBAQCAgBISAEBAJCQAgIAYGAEBACQkAgIASEgBAQAgIBISAEhIBAQAgIASEgEBACQkAICASEgBAQAkJAICAEhIAQEAgIASEgBAQCQkAICAGBgBAQAkJAICAEhIAQEAKCdkBlNpiATEAmIBOQbdwDlkmVpQ61qsIAAAAASUVORK5CYII=",
+    };
     const toBlob = (base64: string, mime: string) => {
       const bytes = Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
       return new Blob([bytes], { type: mime });
@@ -72,7 +90,7 @@ export async function seedGallery(page: Page, items: SeedItem[]) {
         for (const item of seed as SeedItem[]) {
           const isVideo = item.type === "video";
           const mimeType = isVideo ? "video/mp4" : "image/png";
-          const blob = toBlob(PNG, mimeType);
+          const blob = toBlob(PNGS[item.shape ?? "pixel"], mimeType);
           store.put({
             ...item,
             blob,

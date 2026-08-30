@@ -14,11 +14,24 @@ function navRow(page: import("@playwright/test").Page, label: string) {
 /**
  * The channel whose config fills the main pane.
  *
- * Scoped to the 渠道配置 region rather than picked by position: the nav's own
- * group labels are level-2 headings too, so "the first h2" is the nav's 渠道.
+ * Scoped to the 渠道配置 region rather than picked by position. The region is
+ * named for the open view, so this locator finds nothing at all when 通用默认值
+ * or 角色预设 is showing — which is what makes the exclusivity test below able
+ * to fail.
  */
 function openChannel(page: import("@playwright/test").Page) {
   return page.getByRole("region", { name: "渠道配置" }).getByRole("heading", { level: 2 });
+}
+
+/**
+ * By role, not by label.
+ *
+ * `getByLabel` matched the Radix root — an unfocusable span — so pressing a key on
+ * it did nothing while still looking like a found element. The role query can only
+ * match the thumb, which is the part that owns the keyboard behaviour.
+ */
+function concurrency(page: import("@playwright/test").Page) {
+  return page.getByRole("slider", { name: "并发请求数" });
 }
 
 /**
@@ -130,17 +143,54 @@ test.describe("设置 · 保存", () => {
   });
 });
 
-test.describe("设置 · 通用", () => {
-  test("跳转到通用默认值与角色预设", async ({ page }) => {
-    await page.goto("/settings");
-    await page.waitForFunction(() => document.documentElement.dataset.hydrated === "1");
+test.describe("设置 · 全局", () => {
+  // 通用默认值 and 角色预设 are global, but they used to be sections stacked under
+  // whichever channel was open, which read as if they belonged to it. They are
+  // now exclusive views: opening one has to *replace* the channel pane, not
+  // scroll to a heading that was on screen all along.
+  test("通用默认值是独立视图，不再挂在渠道下面", async ({ page }) => {
+    await seedSettings(page, CONFIGURED);
+    await openSettled(page, CURRENT);
 
-    await page.getByRole("button", { name: "并发 / 默认值" }).click();
-    await expect(page.getByRole("heading", { name: "通用默认值" })).toBeInViewport();
+    await navRow(page, "通用默认值").click();
 
-    await page.getByRole("button", { name: "角色预设" }).click();
-    await expect(page.getByRole("heading", { name: "角色预设" })).toBeInViewport();
+    await expect(page.getByRole("heading", { name: "通用默认值", level: 2 })).toBeVisible();
+    // The channel pane is gone, not merely scrolled past.
+    await expect(openChannel(page)).toHaveCount(0);
+    await expect(page.getByLabel("Gitee AI API Key", { exact: true })).toHaveCount(0);
+    await expect(concurrency(page)).toBeVisible();
 
-    await page.screenshot({ path: "e2e/__screens__/设置/角色预设.png", fullPage: false });
+    await page.screenshot({ path: "e2e/__screens__/设置/通用默认值.png", fullPage: false });
+  });
+
+  test("角色预设是独立视图，回到渠道后凭证仍在", async ({ page }) => {
+    await seedSettings(page, CONFIGURED);
+    await openSettled(page, CURRENT);
+
+    await navRow(page, "角色预设").click();
+    await expect(page.getByRole("heading", { name: "角色预设", level: 2 })).toBeVisible();
+    await expect(openChannel(page)).toHaveCount(0);
+
+    await navRow(page, CURRENT).click();
+    await expect(openChannel(page)).toHaveText(CURRENT);
+    await expect(page.getByLabel("Gitee AI API Key", { exact: true })).toBeVisible();
+  });
+
+  test("在全局视图里改并发，未保存提示照样出现", async ({ page }) => {
+    await seedSettings(page, CONFIGURED);
+    await openSettled(page, CURRENT);
+
+    await navRow(page, "通用默认值").click();
+    await expect(page.getByText("有未保存的修改")).toBeHidden();
+
+    // The header's 保存 covers every view that writes to the settings draft, so
+    // the dirty flag has to track edits made here too.
+    const before = await concurrency(page).getAttribute("aria-valuenow");
+    await concurrency(page).press("ArrowRight");
+    // Assert the key actually moved the slider before reading the dirty flag,
+    // otherwise a control that silently swallows the keypress looks like a
+    // missing-dirty-flag bug instead of what it is.
+    await expect(concurrency(page)).not.toHaveAttribute("aria-valuenow", before ?? "");
+    await expect(page.getByText("有未保存的修改")).toBeVisible();
   });
 });

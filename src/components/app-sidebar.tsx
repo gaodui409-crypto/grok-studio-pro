@@ -38,9 +38,18 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="border-b border-sidebar-border/60">
-        <Link to="/" className="flex items-center gap-2 px-2 py-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-primary shadow-glow">
-            <Sparkles className="h-5 w-5 text-primary-foreground" />
+        {/* px-0 when collapsed, and the mark is 32px with shrink-0.
+            The icon rail is 48px; the header's own p-2 leaves 32px, and this
+            link's px-2 left only 16px. Without shrink-0 the 36px mark was
+            squeezed to 20×36 — a rounded square rendered as a vertical
+            rectangle with a stretched glyph inside. 32px also matches the
+            collapsed menu buttons below, so the marks line up in one column. */}
+        <Link
+          to="/"
+          className="flex items-center gap-2 px-2 py-3 group-data-[collapsible=icon]:px-0"
+        >
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-primary shadow-glow">
+            <Sparkles className="h-4 w-4 text-primary-foreground" />
           </div>
           <div className="flex flex-col leading-tight group-data-[collapsible=icon]:hidden">
             <span className="font-display text-base font-semibold tracking-tight">Grok Studio</span>

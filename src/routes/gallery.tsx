@@ -170,17 +170,18 @@ function GalleryPage() {
         />
       )}
 
-      <div className="min-w-0 flex-1 px-6 py-6">
-        <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-xs text-muted-foreground">
-              画廊 · {isFiltered(filter) ? "筛选结果" : "全部"}
-            </p>
-            <h1 className="font-display text-2xl font-semibold tracking-tight md:text-3xl">
-              {isFiltered(filter) ? "筛选结果" : "全部生成结果"} {filtered.length} 项
-            </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              IndexedDB 永久归档 · 关闭页面不丢 · 支持批量打包下载
+      <div className="min-w-0 flex-1">
+        {/* Same sticky header as 设置: the toolbar is the thing you reach for
+            repeatedly, so it should not scroll away behind 48 cards. */}
+        <div className="sticky top-14 z-20 flex flex-wrap items-center justify-between gap-3 border-b border-border/60 bg-background/80 px-6 py-3 backdrop-blur-xl">
+          <div className="min-w-0">
+            <h1 className="truncate font-display text-lg font-semibold tracking-tight">画廊</h1>
+            {/* The count was the h1 at 30px — display type for what is really a
+                status line, and it restated the word above it. As a status region
+                it also announces itself when the filter changes. */}
+            <p className="truncate text-xs text-muted-foreground" role="status">
+              {isFiltered(filter) ? "筛选结果" : "全部生成结果"} {filtered.length} 项 · IndexedDB
+              永久归档，关闭页面不丢
             </p>
           </div>
 
@@ -253,64 +254,66 @@ function GalleryPage() {
           )}
         </div>
 
-        {error && (
-          <div className="mb-4 rounded-xl border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
-            读取画廊失败：{error}
-          </div>
-        )}
-
-        {zipping && (
-          <div className="mb-4 space-y-2 rounded-xl border border-border/60 bg-card p-3 text-xs">
-            <div className="flex justify-between">
-              <span>打包中…</span>
-              <span className="font-mono">{zipProgress}%</span>
+        <div className="px-6 py-6">
+          {error && (
+            <div className="mb-4 rounded-xl border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
+              读取画廊失败：{error}
             </div>
-            <Progress value={zipProgress} />
-          </div>
-        )}
+          )}
 
-        {visible.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-border/60 bg-card/50 p-12 text-center text-sm text-muted-foreground">
-            {!ready
-              ? "正在读取本地归档…"
-              : items.length === 0
-                ? "还没有内容，去生成一些吧～"
-                : "当前筛选条件下没有内容"}
-          </div>
-        ) : (
-          <>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-              {visible.map((item) => (
-                <GalleryCard
-                  key={item.id}
-                  item={item}
-                  url={urls[item.id]}
-                  selected={selected.has(item.id)}
-                  onToggleSelect={() => toggleOne(item.id)}
-                  onPreview={() => setPreviewId(item.id)}
-                  onCopyPrompt={() => void copyPrompt(item.prompt)}
-                  onDownload={() => void downloadOne(item.id)}
-                  onDelete={async () => {
-                    await deleteGalleryItems([item.id]);
-                    await refresh();
-                  }}
-                />
-              ))}
-            </div>
-
-            {remaining > 0 && (
-              <div className="mt-4">
-                <Button
-                  variant="outline"
-                  className="w-full border-dashed"
-                  onClick={() => setLimit((current) => current + PAGE_SIZE)}
-                >
-                  加载更多（剩余 {remaining} 项）
-                </Button>
+          {zipping && (
+            <div className="mb-4 space-y-2 rounded-xl border border-border/60 bg-card p-3 text-xs">
+              <div className="flex justify-between">
+                <span>打包中…</span>
+                <span className="font-mono">{zipProgress}%</span>
               </div>
-            )}
-          </>
-        )}
+              <Progress value={zipProgress} />
+            </div>
+          )}
+
+          {visible.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-border/60 bg-card/50 p-12 text-center text-sm text-muted-foreground">
+              {!ready
+                ? "正在读取本地归档…"
+                : items.length === 0
+                  ? "还没有内容，去生成一些吧～"
+                  : "当前筛选条件下没有内容"}
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                {visible.map((item) => (
+                  <GalleryCard
+                    key={item.id}
+                    item={item}
+                    url={urls[item.id]}
+                    selected={selected.has(item.id)}
+                    onToggleSelect={() => toggleOne(item.id)}
+                    onPreview={() => setPreviewId(item.id)}
+                    onCopyPrompt={() => void copyPrompt(item.prompt)}
+                    onDownload={() => void downloadOne(item.id)}
+                    onDelete={async () => {
+                      await deleteGalleryItems([item.id]);
+                      await refresh();
+                    }}
+                  />
+                ))}
+              </div>
+
+              {remaining > 0 && (
+                <div className="mt-4">
+                  <Button
+                    variant="outline"
+                    className="w-full border-dashed"
+                    onClick={() => setLimit((current) => current + PAGE_SIZE)}
+                  >
+                    加载更多（剩余 {remaining} 项）
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       {selected.size > 0 && (

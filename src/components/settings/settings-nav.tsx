@@ -8,6 +8,18 @@ import {
   type ProviderStatus,
 } from "@/lib/provider-status";
 
+/**
+ * Which pane fills the main column.
+ *
+ * 通用默认值 and 角色预设 used to be sections stacked under whichever channel was
+ * open, which read as if they belonged to that channel — they are global. They
+ * are now siblings of the channels in one exclusive selection, so the nav says
+ * exactly one thing about where you are.
+ */
+export type SettingsView =
+  | { kind: "channel"; provider: ProviderId }
+  | { kind: "general" | "presets" };
+
 const DOT_CLASS: Record<ProviderStatus, string> = {
   ready: "bg-success",
   limited: "bg-warning",
@@ -16,27 +28,26 @@ const DOT_CLASS: Record<ProviderStatus, string> = {
 
 function NavSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="border-b border-border/60 px-3 py-4 last:border-b-0">
-      <h2 className="mb-2 px-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+    <div className="border-b border-border/60 px-2 py-3 last:border-b-0">
+      {/* A <p>, not a heading: these are group captions inside a nav. As h2 they
+          competed with the pane's own h2, and "the second-level heading" stopped
+          identifying anything. */}
+      <p className="mb-1.5 px-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
         {title}
-      </h2>
+      </p>
       <div className="space-y-0.5">{children}</div>
     </div>
   );
 }
 
-function ChannelRow({
-  label,
-  status,
+function NavRow({
   active,
-  current,
   onClick,
+  children,
 }: {
-  label: string;
-  status: ProviderStatus;
   active: boolean;
-  current: boolean;
   onClick: () => void;
+  children: React.ReactNode;
 }) {
   return (
     <button
@@ -44,7 +55,7 @@ function ChannelRow({
       onClick={onClick}
       aria-current={active ? "true" : undefined}
       className={cn(
-        "relative flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition",
+        "relative flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition",
         active
           ? "bg-surface font-medium text-foreground"
           : "text-muted-foreground hover:bg-surface/60 hover:text-foreground",
@@ -56,81 +67,66 @@ function ChannelRow({
           aria-hidden
         />
       )}
-      <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", DOT_CLASS[status])} aria-hidden />
-      <span className="truncate">{label}</span>
-      {/* The dot alone encodes state in colour only, which nothing but a sighted
-          user can read. */}
-      <span className="sr-only">{STATUS_LABELS[status]}</span>
-      {current && (
-        <span className="ml-auto shrink-0 rounded border border-success/40 px-1.5 py-0.5 text-[10px] font-normal text-success">
-          当前
-        </span>
-      )}
-    </button>
-  );
-}
-
-function JumpRow({
-  icon: Icon,
-  label,
-  onClick,
-}: {
-  icon: typeof Sliders;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-muted-foreground transition hover:bg-surface/60 hover:text-foreground"
-    >
-      <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
-      <span className="truncate">{label}</span>
+      {children}
     </button>
   );
 }
 
 export function SettingsNav({
   draft,
-  selected,
+  view,
   onSelect,
-  onJump,
 }: {
   draft: Settings;
-  selected: ProviderId;
-  onSelect: (provider: ProviderId) => void;
-  onJump: (section: "general" | "presets") => void;
+  view: SettingsView;
+  onSelect: (view: SettingsView) => void;
 }) {
   return (
     <nav
       aria-label="设置导航"
-      className="sticky top-14 flex h-[calc(100vh-3.5rem)] w-[236px] shrink-0 flex-col border-r border-border/60 bg-card/40"
+      className="sticky top-14 flex h-[calc(100vh-3.5rem)] w-[208px] shrink-0 flex-col border-r border-border/60 bg-card/40"
     >
       <div className="flex-1 overflow-y-auto">
         <NavSection title="渠道">
-          {PROVIDERS.map((provider) => (
-            <ChannelRow
-              key={provider.id}
-              label={splitProviderLabel(provider.label).name}
-              status={providerStatus(draft, provider.id)}
-              active={selected === provider.id}
-              current={draft.provider === provider.id}
-              onClick={() => onSelect(provider.id)}
-            />
-          ))}
+          {PROVIDERS.map((provider) => {
+            const status = providerStatus(draft, provider.id);
+            return (
+              <NavRow
+                key={provider.id}
+                active={view.kind === "channel" && view.provider === provider.id}
+                onClick={() => onSelect({ kind: "channel", provider: provider.id })}
+              >
+                <span
+                  className={cn("h-1.5 w-1.5 shrink-0 rounded-full", DOT_CLASS[status])}
+                  aria-hidden
+                />
+                <span className="truncate">{splitProviderLabel(provider.label).name}</span>
+                {/* The dot alone encodes state in colour only, which nothing but a
+                    sighted user can read. */}
+                <span className="sr-only">{STATUS_LABELS[status]}</span>
+                {draft.provider === provider.id && (
+                  <span className="ml-auto shrink-0 rounded border border-success/40 px-1.5 py-0.5 text-[10px] font-normal text-success">
+                    当前
+                  </span>
+                )}
+              </NavRow>
+            );
+          })}
         </NavSection>
 
-        {/* Jump links, not destinations: 通用默认值 and 角色预设 are always
-            rendered below the channel panel, so one 保存 covers everything the
-            page can change. */}
-        <NavSection title="通用">
-          <JumpRow icon={Sliders} label="并发 / 默认值" onClick={() => onJump("general")} />
-          <JumpRow icon={Users} label="角色预设" onClick={() => onJump("presets")} />
+        <NavSection title="全局">
+          <NavRow active={view.kind === "general"} onClick={() => onSelect({ kind: "general" })}>
+            <Sliders className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            <span className="truncate">通用默认值</span>
+          </NavRow>
+          <NavRow active={view.kind === "presets"} onClick={() => onSelect({ kind: "presets" })}>
+            <Users className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            <span className="truncate">角色预设</span>
+          </NavRow>
         </NavSection>
       </div>
 
-      <p className="border-t border-border/60 p-4 text-[11px] leading-relaxed text-muted-foreground">
+      <p className="border-t border-border/60 p-3 text-[11px] leading-relaxed text-muted-foreground">
         凭证只写入当前浏览器的 localStorage，不上传任何服务器。
       </p>
     </nav>

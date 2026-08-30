@@ -294,6 +294,7 @@ function VideoPage() {
                 step={1}
                 value={[extendDuration]}
                 onValueChange={(v) => set({ extendDuration: v[0] })}
+                aria-label="延长时长"
               />
               <p className="text-[11px] text-muted-foreground">
                 范围 2–10 秒，输出比例和分辨率继承源视频
@@ -316,6 +317,7 @@ function VideoPage() {
                   step={1}
                   value={[duration]}
                   onValueChange={(v) => set({ duration: v[0] })}
+                  aria-label="时长"
                 />
               </div>
               <AspectRatioSelect value={aspect} onChange={(v) => set({ aspect: v })} />

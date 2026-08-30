@@ -56,20 +56,29 @@ export function GalleryCard({
         </span>
       )}
 
+      {/* 3:4 box with object-contain, not a square with object-cover.
+          Cover cropped to fill: a 9:16 portrait cover lost about a third of its
+          height, centre-cropped, so you could not tell what the picture was
+          without opening it — the one thing a gallery has to get right. Contain
+          fits the whole frame and letterboxes instead.
+          The box is portrait because generated output here skews portrait; a
+          square box would bar every 3:4 down both sides. Dimensions are not
+          stored in GalleryMeta, so a true masonry layout would need a schema
+          migration and a backfill — this fixes the truncation without one. */}
       {url ? (
         kind === "video" ? (
           <button
             type="button"
             onClick={onPreview}
             aria-label="播放预览"
-            className="relative block aspect-square w-full bg-black"
+            className="relative block aspect-[3/4] w-full bg-black"
           >
             <video
               src={url}
               muted
               playsInline
               preload="metadata"
-              className="h-full w-full object-cover"
+              className="h-full w-full object-contain"
             />
             <span className="absolute inset-0 flex items-center justify-center bg-black/30">
               <span className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/90 shadow-glow">
@@ -81,12 +90,12 @@ export function GalleryCard({
           <img
             src={url}
             alt={item.prompt}
-            className="aspect-square w-full object-cover"
+            className="aspect-[3/4] w-full bg-surface/40 object-contain"
             loading="lazy"
           />
         )
       ) : (
-        <div className="aspect-square w-full animate-pulse bg-surface" />
+        <div className="aspect-[3/4] w-full animate-pulse bg-surface" />
       )}
 
       <div className="space-y-1 p-2 text-[11px]">

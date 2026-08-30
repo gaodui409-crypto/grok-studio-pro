@@ -48,10 +48,13 @@ function FacetRow({
 
 function FacetSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="border-b border-border/60 px-3 py-4 last:border-b-0">
-      <h2 className="mb-2 px-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+    <div className="border-b border-border/60 px-2 py-3 last:border-b-0">
+      {/* A <p>, not a heading: these are group captions inside a nav, and as h2
+          they competed with the page's own headings for "the second-level
+          heading" — the same ambiguity that broke a selector on 设置. */}
+      <p className="mb-1.5 px-2 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
         {title}
-      </h2>
+      </p>
       <div className="space-y-0.5">{children}</div>
     </div>
   );
@@ -75,9 +78,12 @@ export function GalleryFacetNav({
   const totalKinds = facets.kinds.image + facets.kinds.video;
 
   return (
+    /* Sticky, like 设置's nav. It was `static` inside a growing flex container,
+       so with 48 cards the filters scrolled off the top and you had to scroll
+       back up to narrow the very list you were looking at. */
     <nav
       aria-label="画廊筛选"
-      className="flex w-[236px] shrink-0 flex-col border-r border-border/60 bg-card/40"
+      className="sticky top-14 flex h-[calc(100vh-3.5rem)] w-[208px] shrink-0 flex-col border-r border-border/60 bg-card/40"
     >
       <div className="flex-1 overflow-y-auto">
         <FacetSection title="类型">

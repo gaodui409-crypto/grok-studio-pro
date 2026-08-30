@@ -16,11 +16,17 @@ type PanelProps = {
 };
 
 /**
- * Label and hint on the left, control on the right.
+ * Label, control, then hint — one column.
  *
- * The hints here are long — several are two or three lines of "where to click in
- * the vendor's console" — and stacking them above the input pushed the next
- * field off screen. Side by side, the column of inputs stays scannable.
+ * This was label-and-hint on the left with the control on the right, which is
+ * where the page's crowding came from: a 15rem label column next to the 208px
+ * rail left the hint about 20 characters wide, so Gitee's two-sentence hint
+ * broke into five ragged lines and the panel read as a wall. Below a
+ * full-width input the same text is two lines.
+ *
+ * The hint sits under the control rather than above it because it explains where
+ * to *get* the value; you read it when the empty box has already raised the
+ * question. Credentials are also long opaque strings, so they want the width.
  */
 function Field({
   label,
@@ -32,12 +38,10 @@ function Field({
   hint?: React.ReactNode;
 }) {
   return (
-    <div className="grid gap-2 md:grid-cols-[minmax(0,15rem)_minmax(0,1fr)] md:gap-6">
-      <div className="space-y-1">
-        {label && <Label>{label}</Label>}
-        {hint && <p className="text-xs leading-relaxed text-muted-foreground">{hint}</p>}
-      </div>
-      <div className="space-y-2">{children}</div>
+    <div className="space-y-2">
+      {label && <Label>{label}</Label>}
+      {children}
+      {hint && <p className="text-xs leading-relaxed text-muted-foreground">{hint}</p>}
     </div>
   );
 }
@@ -320,5 +324,5 @@ const PANELS: Record<ProviderId, (props: PanelProps) => React.ReactNode> = {
  */
 export function ProviderPanel({ provider, draft, patch }: PanelProps & { provider: ProviderId }) {
   const Panel = PANELS[provider];
-  return <div className="space-y-5">{Panel ? <Panel draft={draft} patch={patch} /> : null}</div>;
+  return <div className="space-y-6">{Panel ? <Panel draft={draft} patch={patch} /> : null}</div>;
 }

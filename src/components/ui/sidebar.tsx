@@ -20,7 +20,11 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state";
 const SIDEBAR_COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
-const SIDEBAR_WIDTH = "16rem";
+// 13rem, not shadcn's default 16rem. The widest label in this app is 同人图批量
+// at 70px; with the icon, gap and padding that is 126px of content, so 256px left
+// more dead space than text. 208px keeps the labels un-truncated and gives the
+// content pane back 48px.
+const SIDEBAR_WIDTH = "13rem";
 const SIDEBAR_WIDTH_MOBILE = "18rem";
 const SIDEBAR_WIDTH_ICON = "3rem";
 const SIDEBAR_KEYBOARD_SHORTCUT = "b";
