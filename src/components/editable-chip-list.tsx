@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Check, X, Pencil, Trash2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 
 export type EditableItem = { value: string; checked: boolean };
@@ -89,25 +88,48 @@ export function EditableChipList({
                 </>
               ) : (
                 <>
-                  <Checkbox
-                    checked={it.checked}
-                    onCheckedChange={() => toggle(i)}
-                    className="h-3.5 w-3.5"
-                  />
-                  <button onClick={() => toggle(i)} className="select-none">
+                  {/* One button, not a Checkbox plus a label button.
+                      The pair was two tab stops for one action, the checkbox had
+                      no accessible name, and the label carried no state at all.
+                      It also caused a hydration error on every visit to this page:
+                      Radix's hidden form input spreads a useSize() ResizeObserver
+                      result into its inline style, which is undefined on the server
+                      and {width,height} once the observer fires — so whether the
+                      markup matched depended on machine load. Nothing here is
+                      submitted, so the form input had no purpose to begin with. */}
+                  <button
+                    type="button"
+                    aria-pressed={it.checked}
+                    onClick={() => toggle(i)}
+                    className="flex select-none items-center gap-1"
+                  >
+                    <Check
+                      className={cn(
+                        "h-3 w-3 shrink-0 transition",
+                        it.checked ? "text-primary-glow" : "opacity-25",
+                      )}
+                      aria-hidden
+                    />
                     {it.value}
                   </button>
+                  {/* Hidden until hover for mouse users, but focus-visible brings
+                      them back: opacity-0 alone left keyboard users tabbing onto
+                      controls they could not see. */}
                   <button
+                    type="button"
+                    aria-label={`重命名「${it.value}」`}
                     onClick={() => startEdit(i)}
-                    className="opacity-0 transition group-hover:opacity-70 hover:!opacity-100"
+                    className="opacity-0 transition focus-visible:opacity-100 group-hover:opacity-70 hover:!opacity-100"
                   >
-                    <Pencil className="h-3 w-3" />
+                    <Pencil className="h-3 w-3" aria-hidden />
                   </button>
                   <button
+                    type="button"
+                    aria-label={`删除「${it.value}」`}
                     onClick={() => remove(i)}
-                    className="opacity-0 transition group-hover:opacity-70 hover:!opacity-100 hover:text-destructive"
+                    className="opacity-0 transition focus-visible:opacity-100 group-hover:opacity-70 hover:!opacity-100 hover:text-destructive"
                   >
-                    <Trash2 className="h-3 w-3" />
+                    <Trash2 className="h-3 w-3" aria-hidden />
                   </button>
                 </>
               )}

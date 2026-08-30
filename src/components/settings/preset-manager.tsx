@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Plus, Trash2, Pencil, Check, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -150,9 +150,17 @@ function PresetEditor({
  * preset editor left open should not block saving an API key.
  */
 export function PresetManager() {
-  const [list, setList] = useState<CharacterPreset[]>(loadCustomPresets);
+  // Loaded in an effect rather than in the initializer: localStorage does not exist
+  // during SSR, so seeding state from it made the server render "还没有自定义预设"
+  // while the browser rendered the saved list, and React threw a hydration error on
+  // the settings page for anyone who had saved one.
+  const [list, setList] = useState<CharacterPreset[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<CharacterPreset | null>(null);
+
+  useEffect(() => {
+    setList(loadCustomPresets());
+  }, []);
 
   const persist = (next: CharacterPreset[]) => {
     setList(next);

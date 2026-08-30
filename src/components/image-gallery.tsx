@@ -86,16 +86,25 @@ export function ImageGallery({
               className={box ? "w-full object-contain" : "aspect-square w-full object-contain"}
               loading="lazy"
             />
-            <div className="absolute inset-0 flex items-end justify-between gap-2 bg-gradient-to-t from-background/95 via-background/30 to-transparent p-3 opacity-0 transition group-hover:opacity-100">
-              <Button size="icon" variant="secondary" onClick={() => setPreview(img.url)}>
-                <Maximize2 className="h-4 w-4" />
+            {/* focus-within keeps the overlay up while either button is focused;
+                with opacity driven by hover alone, tabbing to them made them
+                actionable but invisible. */}
+            <div className="absolute inset-0 flex items-end justify-between gap-2 bg-gradient-to-t from-background/95 via-background/30 to-transparent p-3 opacity-0 transition focus-within:opacity-100 group-hover:opacity-100">
+              <Button
+                size="icon"
+                variant="secondary"
+                aria-label={`放大查看第 ${i + 1} 张`}
+                onClick={() => setPreview(img.url)}
+              >
+                <Maximize2 className="h-4 w-4" aria-hidden />
               </Button>
               <Button
                 size="icon"
                 variant="secondary"
+                aria-label={`下载第 ${i + 1} 张`}
                 onClick={() => downloadOne(img.url, filenameOf(i))}
               >
-                <Download className="h-4 w-4" />
+                <Download className="h-4 w-4" aria-hidden />
               </Button>
             </div>
           </div>

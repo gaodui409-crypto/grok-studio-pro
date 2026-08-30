@@ -79,6 +79,24 @@ export type SceneSel = {
   actions: Record<string, boolean>;
   enabled: boolean;
 };
+/**
+ * One image in a batch run, tracked individually.
+ *
+ * Replaces a bare `done`/`total` pair. With only a counter, a run that ended
+ * "20/24" gave no way to tell which four failed or why: the errors went past as
+ * toasts and the four missing images were indistinguishable from images that were
+ * never requested. Keeping a row per item means the failures stay on screen, and
+ * `url` lets the results appear on this page instead of only in the gallery.
+ */
+export type FanartRunItem = {
+  /** Same id as the PromptItem it came from: scene::outfit::action. */
+  id: string;
+  label: string;
+  status: "pending" | "running" | "done" | "failed";
+  url?: string;
+  error?: string;
+};
+
 export type FanartState = {
   presetId: string; // "" = custom
   charName: string;
@@ -94,9 +112,8 @@ export type FanartState = {
   model: string;
   overrides: Record<string, string>;
   running: boolean;
-  done: number;
-  total: number;
-  currentPrompt: string;
+  /** Empty until a run starts; kept afterwards so results stay readable. */
+  runItems: FanartRunItem[];
   lastPresetApplied: string;
 };
 
@@ -197,9 +214,7 @@ export const initialFanart: FanartState = {
   model: "grok-imagine-image-pro",
   overrides: {},
   running: false,
-  done: 0,
-  total: 0,
-  currentPrompt: "",
+  runItems: [],
   lastPresetApplied: "",
 };
 export const initialComic: ComicState = {

@@ -35,9 +35,19 @@ for (const variant of ["空态", "已配置"] as const) {
         // the images show the settled state a user actually reads.
         await page.waitForFunction(() => document.documentElement.dataset.hydrated === "1");
 
+        // caret: "initial" matters. The default, "hide", makes Playwright write
+        // `caret-color: transparent` into the inline style of text fields before
+        // capturing. Route components are lazy chunks, so under parallel load one
+        // can still be hydrating when that happens — React then finds a `style`
+        // attribute it never rendered and reports an attribute mismatch it "won't
+        // patch up". That failure was the test mutating the page, not the page
+        // being wrong, and it cost a long hunt through the SSR output before the
+        // component stack showed a <textarea> whose only bad attribute was
+        // caret-color.
         await page.screenshot({
           path: `e2e/__screens__/${variant}/${route.path === "/" ? "index" : route.path.slice(1)}.png`,
           fullPage: true,
+          caret: "initial",
         });
 
         expect(trap.errors, `控制台错误:\n${trap.errors.join("\n")}`).toEqual([]);
