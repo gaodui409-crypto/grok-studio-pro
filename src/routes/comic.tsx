@@ -1,6 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useState } from "react";
-import { BookOpen, Sparkles, Loader2, Download, X, Languages, Palette } from "lucide-react";
+import {
+  BookOpen,
+  Sparkles,
+  Loader2,
+  Download,
+  X,
+  Languages,
+  Palette,
+  BookOpenText,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -14,13 +23,14 @@ import { PageUploader } from "@/components/comic/page-uploader";
 import { BatchQueue } from "@/components/comic/batch-queue";
 import { StyleChips, CUSTOM_STYLE } from "@/components/comic/style-chips";
 import { LangPicker } from "@/components/comic/lang-picker";
-import { PreviewDialog } from "@/components/comic/preview-dialog";
+import { ComicReader } from "@/components/comic/comic-reader";
 import { useComicBatch, type ProcessOutcome } from "@/hooks/use-comic-batch";
 import { editImages, chatCompletion, currentProvider, providerLabel } from "@/lib/xai";
 import { addGalleryFromUrl } from "@/lib/gallery-db";
 import { useAppStore, type ComicPageItem } from "@/lib/app-store";
 import { attemptPersistence } from "@/lib/persistence";
 import { downloadAllAsZip } from "@/lib/download";
+import { isReadable } from "@/lib/comic-reader";
 import {
   failedPages,
   pagesToRun,
@@ -109,22 +119,35 @@ function RunBar({
   queued,
   rerunAll,
   hasResults,
+  canRead,
   labels,
   onRun,
   onCancel,
   onDownload,
+  onRead,
 }: {
   running: boolean;
   queued: number;
   rerunAll: boolean;
   hasResults: boolean;
+  /** Any pages at all — reading the uploads to check their order is worth doing too. */
+  canRead: boolean;
   labels: { idle: string; busy: string; rerun: string; download: string };
   onRun: () => void;
   onCancel: () => void;
   onDownload: () => void;
+  onRead: () => void;
 }) {
   return (
     <div className="flex flex-wrap items-center justify-end gap-2">
+      {/* Left of 打包下载, because reading the results is what you do before deciding
+          they are worth keeping. Present from the first upload: the same flip-through
+          checks the page order before a 30-page run is paid for. */}
+      {canRead && (
+        <Button type="button" variant="ghost" onClick={onRead}>
+          <BookOpenText className="mr-2 h-4 w-4" aria-hidden /> 阅读
+        </Button>
+      )}
       {hasResults && (
         <Button type="button" variant="secondary" onClick={onDownload}>
           <Download className="mr-2 h-4 w-4" aria-hidden /> {labels.download}
@@ -157,7 +180,10 @@ function RunBar({
 function ColorizePanel() {
   const set = useAppStore((s) => s.setComic);
   const { styleSel, customStyle, refImage, model } = useAppStore((s) => s.comic);
-  const [preview, setPreview] = useState<ComicPageItem | null>(null);
+  // The page id the reader should open at, or null for closed. An id rather than the
+  // item itself: the page keeps changing under a live batch, and the reader needs the
+  // current array anyway to turn to the next page.
+  const [readId, setReadId] = useState<string | null>(null);
   const styleText = styleSel === CUSTOM_STYLE ? customStyle.trim() : styleSel;
 
   const process = useCallback(
@@ -236,7 +262,7 @@ function ColorizePanel() {
               pages={pages}
               running={running}
               concurrency={concurrency}
-              onPreview={setPreview}
+              onPreview={(p) => setReadId(p.id)}
               onRetry={(p) => void run([p])}
               onRetryFailed={() => void run(failedPages(pages))}
               emptyHint="上传漫画页并选择上色风格，即可开始批量上色。"
@@ -246,6 +272,7 @@ function ColorizePanel() {
               queued={queued}
               rerunAll={rerunAll}
               hasResults={pages.some((p) => p.resultUrl)}
+              canRead={isReadable(pages)}
               labels={{
                 idle: "开始批量上色",
                 busy: "上色中…",
@@ -255,6 +282,7 @@ function ColorizePanel() {
               onRun={handleRun}
               onCancel={cancel}
               onDownload={() => void download()}
+              onRead={() => setReadId(pages[0]?.id ?? null)}
             />
           </>
         }
@@ -286,7 +314,7 @@ function ColorizePanel() {
           </>
         }
       />
-      <PreviewDialog page={preview} onClose={() => setPreview(null)} suffix="colored" />
+      <ComicReader pages={pages} openId={readId} onClose={() => setReadId(null)} suffix="colored" />
     </>
   );
 }
@@ -296,7 +324,7 @@ function ColorizePanel() {
 function TranslatePanel() {
   const set = useAppStore((s) => s.setComic);
   const { langFrom, langTo, model } = useAppStore((s) => s.comic);
-  const [preview, setPreview] = useState<ComicPageItem | null>(null);
+  const [readId, setReadId] = useState<string | null>(null);
 
   const process = useCallback(
     async (page: ComicPageItem, { signal }: { signal: AbortSignal }): Promise<ProcessOutcome> => {
@@ -393,7 +421,7 @@ function TranslatePanel() {
               pages={pages}
               running={running}
               concurrency={concurrency}
-              onPreview={setPreview}
+              onPreview={(p) => setReadId(p.id)}
               onRetry={(p) => void run([p])}
               onRetryFailed={() => void run(failedPages(pages))}
               emptyHint="上传漫画页并选择语言，开始批量翻译吧。"
@@ -403,6 +431,7 @@ function TranslatePanel() {
               queued={queued}
               rerunAll={rerunAll}
               hasResults={pages.some((p) => p.resultUrl)}
+              canRead={isReadable(pages)}
               labels={{
                 idle: "开始批量翻译",
                 busy: "翻译中…",
@@ -412,6 +441,7 @@ function TranslatePanel() {
               onRun={handleRun}
               onCancel={cancel}
               onDownload={() => void download()}
+              onRead={() => setReadId(pages[0]?.id ?? null)}
             />
           </>
         }
@@ -433,7 +463,12 @@ function TranslatePanel() {
           </>
         }
       />
-      <PreviewDialog page={preview} onClose={() => setPreview(null)} suffix="translated" />
+      <ComicReader
+        pages={pages}
+        openId={readId}
+        onClose={() => setReadId(null)}
+        suffix="translated"
+      />
     </>
   );
 }

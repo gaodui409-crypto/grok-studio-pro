@@ -264,6 +264,157 @@ test.describe("漫画工具 · 批处理队列", () => {
     expect(sent).toBe(2);
   });
 
+  /**
+   * The reader exists because the old preview dialog could show page 14 and offered
+   * no way to reach page 15 — a 30-page job could only be read by opening and closing
+   * 30 modals. So the assertions are about *turning* pages, not about one page.
+   */
+  test("阅读器能连续翻页，页码跟着走，到头就停", async ({ page }) => {
+    const trap = trapConsole(page);
+    await page.goto("/comic");
+    await hydrated(page);
+    await upload(page, ["a.png", "b.png", "c.png"]);
+
+    // Offered from the first upload, before any run: the same flip-through checks the
+    // page order before 30 requests are paid for.
+    await page.getByRole("button", { name: "阅读" }).click();
+    const reader = page.getByRole("dialog");
+    await expect(reader).toContainText("第 1 / 3 页");
+    await expect(reader).toContainText("0 / 3 页已生成");
+
+    const next = reader.getByRole("button", { name: "下一页" });
+    const prev = reader.getByRole("button", { name: "上一页" });
+
+    // At the first page there is nowhere back to go — clamped, not wrapped, so 上一页
+    // cannot silently restart the book.
+    await expect(prev).toBeDisabled();
+    await next.click();
+    await expect(reader).toContainText("第 2 / 3 页");
+    await expect(prev).toBeEnabled();
+
+    // Keyboard, because a reader that needs the mouse for every turn is not a reader.
+    await page.keyboard.press("ArrowRight");
+    await expect(reader).toContainText("第 3 / 3 页");
+    await expect(next).toBeDisabled();
+
+    await page.keyboard.press("ArrowLeft");
+    await expect(reader).toContainText("第 2 / 3 页");
+    await page.keyboard.press("Home");
+    await expect(reader).toContainText("第 1 / 3 页");
+    await page.keyboard.press("End");
+    await expect(reader).toContainText("第 3 / 3 页");
+
+    // The strip is the only way from page 2 to page 27 without 25 clicks.
+    await reader.getByRole("button", { name: "跳到第 1 页" }).click();
+    await expect(reader).toContainText("第 1 / 3 页");
+
+    expect(trap.errors).toEqual([]);
+  });
+
+  test("从某一行进入阅读器时停在那一页", async ({ page }) => {
+    await page.goto("/comic");
+    await hydrated(page);
+    await upload(page, ["a.png", "b.png", "c.png"]);
+
+    // 查看大图 on a row is now "start reading here", not "look at this one thing".
+    // Rows only offer it once they have a result, so the reader is opened via the
+    // strip's own entry point and then checked for the requested page.
+    await page.getByRole("button", { name: "阅读" }).click();
+    const reader = page.getByRole("dialog");
+    await reader.getByRole("button", { name: "跳到第 3 页" }).click();
+    await expect(reader).toContainText("第 3 / 3 页");
+
+    // Reopening starts a fresh read rather than resuming: position is per-visit.
+    await page.keyboard.press("Escape");
+    await expect(reader).toBeHidden();
+    await page.getByRole("button", { name: "阅读" }).click();
+    await expect(page.getByRole("dialog")).toContainText("第 1 / 3 页");
+  });
+
+  test("未生成的页显示原图并说明原因，不会被跳过", async ({ page }) => {
+    await page.goto("/comic");
+    await hydrated(page);
+    await upload(page, ["a.png", "b.png"]);
+    await page.getByRole("button", { name: "阅读" }).click();
+
+    const reader = page.getByRole("dialog");
+    // Hiding unfinished pages would renumber the book mid-run, so they stay and say
+    // why they are still black and white.
+    await expect(reader).toContainText("这一页还没有生成结果，显示的是原图");
+    await expect(reader).toContainText("第 1 / 2 页");
+
+    // With nothing generated there is no 结果/原图 comparison to offer: both buttons
+    // would show the same image.
+    await expect(reader.getByRole("group", { name: "切换显示原图或结果" })).toHaveCount(0);
+    await expect(reader.getByRole("button", { name: "下载这一页" })).toBeDisabled();
+  });
+
+  test("连页模式滚动时页码跟随当前页", async ({ page }) => {
+    await page.goto("/comic");
+    await hydrated(page);
+    await upload(page, ["a.png", "b.png", "c.png"]);
+    await page.getByRole("button", { name: "阅读" }).click();
+
+    const reader = page.getByRole("dialog");
+    await reader.getByRole("button", { name: "连页" }).click();
+
+    // In 连页 every page is in the DOM at once, so the counter is driven by what owns
+    // the middle of the viewport. Without that it would read 第 1 / 3 页 while you
+    // look at page 3, and 下载这一页 beside it would hand you page 1.
+    await reader.getByRole("button", { name: "跳到第 3 页" }).click();
+    await expect(reader).toContainText("第 3 / 3 页");
+  });
+
+  test("翻译页阅读器可以展开该页译文", async ({ page }) => {
+    await seedSettings(page, { ...CONFIGURED, provider: "xai", apiKey: "e2e-fake-xai-key" });
+
+    await page.route("**/v1/chat/completions", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          choices: [{ message: { content: "气泡1：こんにちは｜你好" } }],
+        }),
+      });
+    });
+    await page.route("**/v1/images/edits", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          data: [{ b64_json: PNG.toString("base64"), mime_type: "image/png" }],
+        }),
+      });
+    });
+
+    await page.goto("/comic");
+    await hydrated(page);
+    await expect(async () => {
+      await page.getByRole("tab", { name: "漫画翻译" }).click();
+      await expect(page.getByRole("button", { name: /开始批量翻译/ })).toBeVisible();
+    }).toPass({ timeout: 15_000 });
+
+    await upload(page, ["p1.png"]);
+    await page.getByRole("button", { name: "开始批量翻译（1 张）" }).click();
+    await expect(page.getByText("1 完成 · 0 进行中 · 0 失败 · 0 等待")).toBeVisible({
+      timeout: 20_000,
+    });
+
+    await page.getByRole("button", { name: "阅读" }).click();
+    const reader = page.getByRole("dialog");
+    await expect(reader).toContainText("1 / 1 页已生成");
+
+    // Collapsed by default: the text competes with the page for height, and the page
+    // is what a reader is for.
+    await expect(reader.getByLabel("第 1 页识别原文与译文对照")).toHaveCount(0);
+    await reader.getByRole("button", { name: "查看译文" }).click();
+    await expect(reader.getByLabel("第 1 页识别原文与译文对照")).toHaveValue(/こんにちは｜你好/);
+
+    // Now that a result exists, the comparison toggle is worth offering.
+    await expect(reader.getByRole("group", { name: "切换显示原图或结果" })).toBeVisible();
+    await expect(reader.getByRole("button", { name: "下载这一页" })).toBeEnabled();
+  });
+
   test("翻译页说明请求数是页数的两倍", async ({ page }) => {
     await page.goto("/comic");
     await hydrated(page);
