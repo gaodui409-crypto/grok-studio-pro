@@ -33,8 +33,13 @@ import {
 import type { ModelSpec } from "@/lib/provider-catalog";
 
 function modelOptions(provider: ProviderId): ModelSpec[] {
-  // xAI's models are priced presets rather than a fetchable catalog.
-  if (provider === "xai") return IMAGE_MODELS.map((m) => ({ id: m.id, label: m.label }));
+  // xAI's models are priced presets rather than a fetchable catalog. The rate is
+  // folded back into the label here — this select is full-width in settings, where
+  // picking a model *is* picking a price, unlike the narrow params rail that made
+  // splitting the two necessary in the first place.
+  if (provider === "xai") {
+    return IMAGE_MODELS.map((m) => ({ id: m.id, label: `${m.label}（${m.rates}）` }));
+  }
   return availableModels(provider);
 }
 

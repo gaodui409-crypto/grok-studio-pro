@@ -71,6 +71,19 @@ export type VideoState = {
   loading: boolean;
   status: VideoStatus | null;
   videoUrl: string | null;
+  /**
+   * The id of the task currently being tracked, kept until a new one replaces it.
+   *
+   * It used to live only in a toast. Video is billed by output length, so if the
+   * poll died — one network blip was enough — the render kept going on xAI's side
+   * and the only handle to a job the user had already paid for had faded off the
+   * screen. Keeping it lets 复制 request_id and 继续查询 exist at all.
+   */
+  requestId: string | null;
+  /** Wall clock at submit, for the elapsed readout while polling. */
+  startedAt: number | null;
+  /** Set when polling stopped without a verdict, so 继续查询 can be offered. */
+  pollError: string | null;
 };
 
 // ---------------- Fanart (/fanart) ----------------
@@ -200,6 +213,9 @@ export const initialVideo: VideoState = {
   loading: false,
   status: null,
   videoUrl: null,
+  requestId: null,
+  startedAt: null,
+  pollError: null,
 };
 export const initialFanart: FanartState = {
   presetId: "",

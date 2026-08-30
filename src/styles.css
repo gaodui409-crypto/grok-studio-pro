@@ -170,4 +170,26 @@
     backdrop-filter: blur(12px);
     border: 1px solid oklch(0.4 0.05 285 / 0.2);
   }
+  /* Indeterminate progress, for the video task: /v1/videos/{id} reports no
+     percentage while a render is pending, and filling in a fake number made a
+     three-minute job look frozen. A sliding bar says "working, length unknown",
+     which is the truth. Honours reduced-motion by standing still. */
+  .animate-indeterminate {
+    animation: indeterminate-slide 1.4s ease-in-out infinite;
+  }
+  @keyframes indeterminate-slide {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(300%);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .animate-indeterminate {
+      animation: none;
+      width: 100%;
+      opacity: 0.5;
+    }
+  }
 }

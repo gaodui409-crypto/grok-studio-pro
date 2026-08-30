@@ -1,10 +1,21 @@
+// `rates` is deliberately not folded into `label`. A select trigger is a
+// fixed-width control showing the *current value*, so anything inside the label
+// competes for that space with the name of the thing being identified — the video
+// model has two rates and rendered as
+// "Grok Imagine · Video (480p $0.05/s ·" in the 320px params rail, clipped
+// mid-price. The name identifies, the rates inform; they get shown in different
+// places (see ParamSelect) and only the name has to survive the clamp.
 export const IMAGE_MODELS = [
-  { id: "grok-imagine-image-pro", label: "Grok Imagine · Image Pro ($0.07/张)" },
-  { id: "grok-imagine-image", label: "Grok Imagine · Image ($0.04/张)" },
+  { id: "grok-imagine-image-pro", label: "Grok Imagine · Image Pro", rates: "$0.07/张" },
+  { id: "grok-imagine-image", label: "Grok Imagine · Image", rates: "$0.04/张" },
 ] as const;
 
 export const VIDEO_MODELS = [
-  { id: "grok-imagine-video", label: "Grok Imagine · Video (480p $0.05/s · 720p $0.07/s)" },
+  {
+    id: "grok-imagine-video",
+    label: "Grok Imagine · Video",
+    rates: "480p $0.05/s · 720p $0.07/s",
+  },
 ] as const;
 
 export type ProviderId =

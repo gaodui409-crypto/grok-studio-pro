@@ -176,6 +176,9 @@ export async function getVideoStatus(requestId: string): Promise<VideoStatus> {
   return xaiRequest(`/v1/videos/${requestId}`, { method: "GET" });
 }
 
+/** Consecutive status-GET failures tolerated before the poll gives up. */
+export const POLL_MAX_CONSECUTIVE_ERRORS = 3;
+
 export function pollVideo(
   requestId: string,
   onUpdate: (status: VideoStatus) => void,
@@ -184,10 +187,16 @@ export function pollVideo(
   let stopped = false;
   let timer: ReturnType<typeof setTimeout> | null = null;
   const promise = new Promise<VideoStatus>((resolve, reject) => {
+    // A status GET is not the job. The video is already rendering on xAI's side
+    // and is already billable, so rejecting on the first 502 threw away tracking
+    // of something the user had paid for — over a request that costs nothing to
+    // repeat. Retry a few times, then report the last error.
+    let consecutiveErrors = 0;
     const tick = async () => {
       if (stopped) return;
       try {
         const status = await getVideoStatus(requestId);
+        consecutiveErrors = 0;
         onUpdate(status);
         if (status.status === "done" || status.status === "failed" || status.status === "expired") {
           resolve(status);
@@ -195,7 +204,12 @@ export function pollVideo(
         }
         timer = setTimeout(tick, intervalMs);
       } catch (error) {
-        reject(error);
+        consecutiveErrors += 1;
+        if (consecutiveErrors >= POLL_MAX_CONSECUTIVE_ERRORS) {
+          reject(error);
+          return;
+        }
+        timer = setTimeout(tick, intervalMs);
       }
     };
     tick();

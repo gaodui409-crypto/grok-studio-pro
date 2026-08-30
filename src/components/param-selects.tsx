@@ -1,3 +1,4 @@
+import { useId, type ReactNode } from "react";
 import {
   Select,
   SelectContent,
@@ -7,6 +8,49 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { IMAGE_MODELS, RESOLUTION_TIERS, VIDEO_MODELS } from "@/lib/settings";
+
+/**
+ * A labelled parameter select.
+ *
+ * The four selects below each had a `<Label>` with no `htmlFor` sitting above a
+ * `SelectTrigger` with no `id`, so the label was decorative text: every parameter
+ * control on the 文生图, 同人图批量 and 视频生成 rails was announced as an unnamed
+ * combobox, and clicking the label did nothing. useId rather than a fixed string
+ * because these render on several pages and nothing stops two from sharing one.
+ */
+function ParamSelect({
+  label,
+  value,
+  onChange,
+  hint,
+  children,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  /** Reference detail shown under the control, for facts the trigger has no room for. */
+  hint?: ReactNode;
+  children: ReactNode;
+}) {
+  const id = useId();
+  return (
+    <div className="space-y-1.5">
+      <Label
+        htmlFor={id}
+        className="text-xs font-medium uppercase tracking-wider text-muted-foreground"
+      >
+        {label}
+      </Label>
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger id={id}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>{children}</SelectContent>
+      </Select>
+      {hint && <p className="text-[11px] leading-relaxed text-muted-foreground">{hint}</p>}
+    </div>
+  );
+}
 
 export const ASPECT_RATIOS = [
   "1:1",
@@ -29,23 +73,13 @@ export function AspectRatioSelect({
   onChange: (v: string) => void;
 }) {
   return (
-    <div className="space-y-1.5">
-      <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-        画面比例
-      </Label>
-      <Select value={value} onValueChange={onChange}>
-        <SelectTrigger>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {ASPECT_RATIOS.map((r) => (
-            <SelectItem key={r} value={r}>
-              {r}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
+    <ParamSelect label="画面比例" value={value} onChange={onChange}>
+      {ASPECT_RATIOS.map((r) => (
+        <SelectItem key={r} value={r}>
+          {r}
+        </SelectItem>
+      ))}
+    </ParamSelect>
   );
 }
 
@@ -63,27 +97,17 @@ export function ResolutionSelect({
   options?: readonly (string | { id: string; label: string })[];
 }) {
   return (
-    <div className="space-y-1.5">
-      <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-        分辨率
-      </Label>
-      <Select value={value} onValueChange={onChange}>
-        <SelectTrigger>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {options.map((option) => {
-            const id = typeof option === "string" ? option : option.id;
-            const label = typeof option === "string" ? option : option.label;
-            return (
-              <SelectItem key={id} value={id}>
-                {label}
-              </SelectItem>
-            );
-          })}
-        </SelectContent>
-      </Select>
-    </div>
+    <ParamSelect label="分辨率" value={value} onChange={onChange}>
+      {options.map((option) => {
+        const id = typeof option === "string" ? option : option.id;
+        const label = typeof option === "string" ? option : option.label;
+        return (
+          <SelectItem key={id} value={id}>
+            {label}
+          </SelectItem>
+        );
+      })}
+    </ParamSelect>
   );
 }
 
@@ -95,23 +119,13 @@ export function ImageModelSelect({
   onChange: (v: string) => void;
 }) {
   return (
-    <div className="space-y-1.5">
-      <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-        图片模型
-      </Label>
-      <Select value={value} onValueChange={onChange}>
-        <SelectTrigger>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {IMAGE_MODELS.map((m) => (
-            <SelectItem key={m.id} value={m.id}>
-              {m.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
+    <ParamSelect label="图片模型" value={value} onChange={onChange}>
+      {IMAGE_MODELS.map((m) => (
+        <SelectItem key={m.id} value={m.id} hint={m.rates}>
+          {m.label}
+        </SelectItem>
+      ))}
+    </ParamSelect>
   );
 }
 
@@ -122,23 +136,18 @@ export function VideoModelSelect({
   value: string;
   onChange: (v: string) => void;
 }) {
+  // Shown under the select, not in it. Both rates side by side is what makes the
+  // 分辨率 choice above answerable — the cost box only ever prices the tier already
+  // picked, and in 视频编辑 mode there is no cost box at all (final length comes from
+  // the source video, so nothing can be multiplied out until it is uploaded).
+  const rates = VIDEO_MODELS.find((m) => m.id === value)?.rates;
   return (
-    <div className="space-y-1.5">
-      <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-        视频模型
-      </Label>
-      <Select value={value} onValueChange={onChange}>
-        <SelectTrigger>
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {VIDEO_MODELS.map((m) => (
-            <SelectItem key={m.id} value={m.id}>
-              {m.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
+    <ParamSelect label="视频模型" value={value} onChange={onChange} hint={rates}>
+      {VIDEO_MODELS.map((m) => (
+        <SelectItem key={m.id} value={m.id} hint={m.rates}>
+          {m.label}
+        </SelectItem>
+      ))}
+    </ParamSelect>
   );
 }

@@ -106,8 +106,8 @@ SelectLabel.displayName = SelectPrimitive.Label.displayName;
 
 const SelectItem = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Item>,
-  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Item>
->(({ className, children, ...props }, ref) => (
+  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Item> & { hint?: React.ReactNode }
+>(({ className, children, hint, ...props }, ref) => (
   <SelectPrimitive.Item
     ref={ref}
     className={cn(
@@ -122,6 +122,11 @@ const SelectItem = React.forwardRef<
       </SelectPrimitive.ItemIndicator>
     </span>
     <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+    {/* Outside ItemText on purpose: Radix renders ItemText — and only ItemText —
+        into the trigger, so secondary detail put in here shows in the open list
+        without widening the closed control. That is what lets a model's price be
+        visible while choosing yet absent from the fixed-width trigger. */}
+    {hint && <span className="ml-3 text-xs text-muted-foreground">{hint}</span>}
   </SelectPrimitive.Item>
 ));
 SelectItem.displayName = SelectPrimitive.Item.displayName;

@@ -47,3 +47,38 @@ export function batchCost(provider: ProviderId, model: string, count: number): B
 export function quotaNote(provider: ProviderId): string {
   return PROVIDERS.find((p) => p.id === provider)?.quota ?? "";
 }
+
+// xAI's published video rates, per second of output. These are the same two
+// numbers quoted in VIDEO_MODELS' `rates` string, kept here as numbers so the
+// estimate and the dropdown cannot drift apart — and so nobody has to parse a
+// price back out of a display string. A test in batch-cost.test.ts pins the two
+// together.
+const XAI_VIDEO_USD_PER_SECOND: Record<"480p" | "720p", number> = {
+  "480p": 0.05,
+  "720p": 0.07,
+};
+
+export type VideoCost =
+  /** Billed by output length. */
+  | { kind: "paid"; usd: number; perSecond: number }
+  /** The selected channel has no video endpoint, so there is nothing to price. */
+  | { kind: "unsupported" };
+
+/**
+ * What one video costs.
+ *
+ * Duration is the one parameter on the page that changes the bill, and a slider
+ * from 1 to 15 spans a 15× range — so the number belongs next to the slider
+ * rather than in a docs page. Video is xAI-only (see requireXaiProvider), and a
+ * channel that cannot make the request must not be quoted a price: that was the
+ * exact mistake batchCost() above was written to fix.
+ */
+export function videoCost(
+  provider: ProviderId,
+  resolution: "480p" | "720p",
+  seconds: number,
+): VideoCost {
+  if (provider !== "xai") return { kind: "unsupported" };
+  const perSecond = XAI_VIDEO_USD_PER_SECOND[resolution];
+  return { kind: "paid", usd: perSecond * seconds, perSecond };
+}
