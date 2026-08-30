@@ -6,15 +6,45 @@ import { downloadOne, downloadAllAsZip } from "@/lib/download";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 
+/**
+ * Turns a requested ratio into a CSS aspect-ratio value.
+ *
+ * As an inline style rather than a Tailwind class, because the ratio is only known
+ * at runtime: Tailwind compiles the classes it can see in the source, so a
+ * template-built `aspect-[16/9]` produces no CSS at all and the box silently
+ * collapses.
+ *
+ * "auto" means the channel decides, so there is no ratio to honour — those fall
+ * back to a square box, which with object-contain still shows the whole image.
+ */
+function aspectStyle(aspect?: string) {
+  if (!aspect || aspect === "auto") return undefined;
+  const [w, h] = aspect.split(":");
+  if (!w || !h || !Number(w) || !Number(h)) return undefined;
+  return { aspectRatio: `${Number(w)} / ${Number(h)}` };
+}
+
 export function ImageGallery({
   images,
   prefix = "grok",
+  aspect,
 }: {
   images: GeneratedImage[];
   prefix?: string;
+  /**
+   * The ratio these images were requested at, e.g. "16:9".
+   *
+   * Every image in one batch shares the request's parameters, so a single ratio
+   * sizes the whole grid and the rows stay even. Without it the grid was a square
+   * box with object-cover, which centre-cropped anything that was not square —
+   * the same defect that made portrait covers unreadable in the archive.
+   */
+  aspect?: string;
 }) {
   const [preview, setPreview] = useState<string | null>(null);
   if (!images.length) return null;
+
+  const box = aspectStyle(aspect);
 
   const filenameOf = (i: number) => `${prefix}-${Date.now()}-${i + 1}.png`;
 
@@ -45,10 +75,15 @@ export function ImageGallery({
             key={i}
             className="group relative overflow-hidden rounded-xl border border-border/60 bg-card shadow-card transition hover:border-primary/40 hover:shadow-glow"
           >
+            {/* No group-hover scale here. Growing the image 5% inside a box that
+                fits it exactly pushes the edges outside the frame, which is the
+                crop this change exists to remove — the hover affordance is the
+                overlay below. */}
             <img
               src={img.url}
               alt={img.revised_prompt || `生成结果 ${i + 1}`}
-              className="aspect-square w-full object-cover transition duration-500 group-hover:scale-105"
+              style={box}
+              className={box ? "w-full object-contain" : "aspect-square w-full object-contain"}
               loading="lazy"
             />
             <div className="absolute inset-0 flex items-end justify-between gap-2 bg-gradient-to-t from-background/95 via-background/30 to-transparent p-3 opacity-0 transition group-hover:opacity-100">

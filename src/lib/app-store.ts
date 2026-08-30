@@ -13,6 +13,23 @@ import type { ResolutionTier, Settings } from "./settings";
 import { getSettingsDefaultPatches } from "./settings-defaults.ts";
 
 // ---------------- Text-to-image (/) ----------------
+/**
+ * What the last finished run produced.
+ *
+ * Kept beside `images` rather than in component state so the two cannot disagree:
+ * the images already survive navigation, so a summary held in the page would
+ * vanish on the way to /gallery and back and leave results with no provenance.
+ * `aspect` is recorded per run because the picker can be changed afterwards, and
+ * the grid must be laid out at the ratio the images were actually made at.
+ */
+export type RunMeta = {
+  count: number;
+  requested: number;
+  seconds: number;
+  provider: string;
+  aspect: string;
+};
+
 export type T2IState = {
   prompt: string;
   n: number;
@@ -21,6 +38,7 @@ export type T2IState = {
   model: string;
   loading: boolean;
   images: GeneratedImage[];
+  lastRun: RunMeta | null;
 };
 
 // ---------------- Image-to-image (/edit) ----------------
@@ -136,6 +154,7 @@ export const initialT2I: T2IState = {
   model: "grok-imagine-image-pro",
   loading: false,
   images: [],
+  lastRun: null,
 };
 export const initialI2I: I2IState = {
   images: [],
