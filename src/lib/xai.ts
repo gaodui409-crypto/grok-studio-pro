@@ -1,7 +1,9 @@
 import { loadSettings, type ProviderId, type Settings } from "./settings.ts";
 import { imageProviderRegistry } from "./providers/index.ts";
 import { xaiRequest } from "./providers/xai-client.ts";
-import type { ImageEditParams, ImageGenParams } from "./providers/types.ts";
+import { chooseProvider } from "./provider-fallback.ts";
+import { recordUsage } from "./quota.ts";
+import type { GeneratedImage, ImageEditParams, ImageGenParams } from "./providers/types.ts";
 
 export type { GeneratedImage, ImageEditParams, ImageGenParams } from "./providers/types.ts";
 
@@ -13,8 +15,40 @@ export function providerLabel(id: ProviderId = currentProvider()): string {
   return imageProviderRegistry.get(id).label;
 }
 
+export type GenerateImagesOutcome = {
+  images: GeneratedImage[];
+  /** Which channel actually served the request. */
+  provider: ProviderId;
+  /** Set when the local quota tally redirected away from the chosen channel. */
+  switchedFrom?: ProviderId;
+};
+
+// Opt-in entry point for the quota-aware path: picks a channel via
+// chooseProvider (which redirects away from ones the local tally says are spent)
+// and reports which one actually ran, so a caller can tell the user about the
+// switch. NOT yet used by any page — the quota UI is deferred, and redirecting
+// channels with nothing on screen to explain it would leave the user staring at a
+// result from a provider they did not choose.
+export async function generateImagesWithFallback(
+  p: ImageGenParams,
+): Promise<GenerateImagesOutcome> {
+  const settings = loadSettings();
+  const choice = chooseProvider(settings);
+  const images = await imageProviderRegistry.get(choice.provider).generateImages(p);
+  recordUsage(choice.provider, images.length);
+  return { images, provider: choice.provider, switchedFrom: choice.switchedFrom };
+}
+
 export async function generateImages(p: ImageGenParams) {
-  return imageProviderRegistry.get(currentProvider()).generateImages(p);
+  const provider = currentProvider();
+  const images = await imageProviderRegistry.get(provider).generateImages(p);
+  // Counting runs now even though the redirect does not: it only writes to
+  // localStorage, so it changes nothing the user can see, and it means the ledger
+  // already holds real history on the day the quota UI ships. Counted after the
+  // await on the length actually returned — a rejected request consumed nothing,
+  // and a partial batch consumed only what came back.
+  recordUsage(provider, images.length);
+  return images;
 }
 
 export async function editImages(p: ImageEditParams) {

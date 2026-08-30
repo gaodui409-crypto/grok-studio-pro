@@ -156,6 +156,9 @@ export function nearestTier(
 export type Settings = {
   // Provider selection
   provider: ProviderId;
+  // Per-channel daily cap, used by the local quota tally (see lib/quota.ts).
+  // Absent or 0 means "no cap set" = unlimited as far as this app is concerned.
+  dailyLimits: Partial<Record<ProviderId, number>>;
   // xAI / NewAPI
   apiKey: string;
   baseUrl: string;
@@ -205,6 +208,12 @@ const KEY = "grok-studio-settings";
 
 export const defaultSettings: Settings = {
   provider: "xai",
+  // Only the two channels whose daily allowance the 0829 notes actually pin down
+  // are pre-filled. The rest meter something that is not per-day at all
+  // (Pollinations' non-refreshing Pollen, AI Horde Kudos, PixAI points) or are
+  // pay-as-you-go (xAI), so inventing a daily number for them would invent a cap
+  // the vendor does not have.
+  dailyLimits: { gitee: 100, modelscope: 50 },
   apiKey: "",
   baseUrl: "https://api.x.ai",
   imageModel: "grok-imagine-image-pro",
@@ -268,6 +277,20 @@ export function enabledProviders(settings: Settings): ProviderId[] {
   ).map((provider) => provider.id);
 }
 
+// Channels the automatic quota fallback is allowed to redirect to.
+//
+// Narrower than enabledProviders() on purpose. AI Horde needs no credentials, so
+// providerSetupIssue() says it is "ready" and it would otherwise be the first
+// fallback for everyone — but an anonymous Horde account has 0 Kudos, meaning
+// lowest queue priority and a hard ceiling around 711px. Being silently moved
+// there means a long wait for an image at a resolution the user did not ask for.
+// Picking it by hand is fine; being sent there behind your back is not.
+export function fallbackProviders(settings: Settings): ProviderId[] {
+  return enabledProviders(settings).filter(
+    (id) => id !== "aihorde" || settings.aiHordeApiKey.trim() !== "",
+  );
+}
+
 export function loadSettings(): Settings {
   if (typeof window === "undefined") return defaultSettings;
   try {
@@ -280,6 +303,21 @@ export function loadSettings(): Settings {
     // providers as an unknown string — they'd derive NaN dimensions from it.
     if (!TIER_EDGES[merged.defaultResolution as ResolutionTier]) {
       merged.defaultResolution = defaultSettings.defaultResolution;
+    }
+    // A hand-edited or older payload can hold junk here; the quota code does
+    // arithmetic on these, so a string would produce NaN limits and make every
+    // channel look exhausted.
+    if (!merged.dailyLimits || typeof merged.dailyLimits !== "object") {
+      merged.dailyLimits = { ...defaultSettings.dailyLimits };
+    } else {
+      const clean: Partial<Record<ProviderId, number>> = {};
+      for (const [id, value] of Object.entries(merged.dailyLimits)) {
+        const n = Number(value);
+        if (PROVIDER_FEATURES[id as ProviderId] && Number.isFinite(n) && n > 0) {
+          clean[id as ProviderId] = Math.floor(n);
+        }
+      }
+      merged.dailyLimits = clean;
     }
     return merged;
   } catch {
