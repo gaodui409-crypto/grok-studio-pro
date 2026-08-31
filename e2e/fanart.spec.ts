@@ -133,3 +133,99 @@ test.describe("同人图批量 · 场景树", () => {
     expect(trap.errors, `控制台错误:\n${trap.errors.join("\n")}`).toEqual([]);
   });
 });
+
+// 1×1 PNG, same stand-in the comic spec uses.
+const PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFAAH/q842iQAAAABJRU5ErkJggg==",
+  "base64",
+);
+
+test.describe("同人图批量 · 重试", () => {
+  // These two actually run a batch, wait for it to settle, then run a retry — three
+  // request round-trips plus two lazy route loads, against a dev server shared by
+  // four workers. The suite's 30s default is sized for assertion-only tests and
+  // this pair times out under parallel load without ever being wrong.
+  test.slow();
+
+  /**
+   * A retry must re-run only what failed.
+   *
+   * Re-submitting the batch was the only way to recover a failure, which re-pays
+   * for every image that already worked — on a 24-image batch that is 21 wasted
+   * requests to recover 3. So the count of requests is what this asserts, not just
+   * that the row turned green.
+   */
+  test("单项重试只重跑那一项", async ({ page }) => {
+    let attempts = 0;
+    await page.route("**/v1/images/generations", async (route) => {
+      attempts += 1;
+      // First request fails, everything after succeeds: gives one failed row to
+      // retry while its sibling finishes normally.
+      if (attempts === 1) {
+        await route.fulfill({
+          status: 500,
+          contentType: "application/json",
+          body: JSON.stringify({ error: { message: "渠道临时故障" } }),
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ data: [{ b64_json: PNG.toString("base64") }] }),
+      });
+    });
+
+    await seedSettings(page, { ...CONFIGURED, provider: "xai", concurrency: 1 });
+    await page.goto("/fanart");
+    await hydrated(page);
+
+    await pick(page, ["铠甲"], ["举剑挥砍", "格挡防御"]);
+    await page.getByLabel("角色描述").fill("白发红眼少女");
+    await page.getByRole("button", { name: /开始生成 · 2 张/ }).click();
+
+    await expect(page.getByRole("heading", { name: "1 张未生成" })).toBeVisible({
+      timeout: 20_000,
+    });
+    expect(attempts).toBe(2);
+
+    await page.getByRole("button", { name: /^重试 / }).click();
+
+    // The failure block disappears once nothing is failed, and only one extra
+    // request was made — the image that already succeeded was not re-paid for.
+    await expect(page.getByRole("heading", { name: /张未生成/ })).toHaveCount(0, {
+      timeout: 20_000,
+    });
+    expect(attempts).toBe(3);
+  });
+
+  test("重试全部失败项后仍失败的项留在列表里", async ({ page }) => {
+    await page.route("**/v1/images/generations", async (route) => {
+      await route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: JSON.stringify({ error: { message: "渠道临时故障" } }),
+      });
+    });
+
+    await seedSettings(page, { ...CONFIGURED, provider: "xai", concurrency: 1 });
+    await page.goto("/fanart");
+    await hydrated(page);
+
+    await pick(page, ["铠甲"], ["举剑挥砍", "格挡防御"]);
+    await page.getByLabel("角色描述").fill("白发红眼少女");
+    await page.getByRole("button", { name: /开始生成 · 2 张/ }).click();
+
+    await expect(page.getByRole("heading", { name: "2 张未生成" })).toBeVisible({
+      timeout: 20_000,
+    });
+
+    await page.getByRole("button", { name: /重试全部失败项 \(2\)/ }).click();
+
+    // Still two failures, and the block did not silently clear itself — a retry
+    // that fails has to look different from one that worked.
+    await expect(page.getByRole("heading", { name: "2 张未生成" })).toBeVisible({
+      timeout: 20_000,
+    });
+  });
+});

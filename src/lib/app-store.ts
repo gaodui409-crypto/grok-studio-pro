@@ -108,6 +108,20 @@ export type FanartRunItem = {
   status: "pending" | "running" | "done" | "failed";
   url?: string;
   error?: string;
+  /**
+   * The prompt this item was submitted with, kept so a retry re-runs what failed.
+   *
+   * Not re-derived from the scene tree at retry time on purpose: the tree is
+   * editable while a run is on screen, so re-deriving would silently retry a
+   * *different* prompt than the one that failed — and the whole point of a retry
+   * is that the input is unchanged. Also survives unticking a scene, which would
+   * otherwise remove the failed item's prompt from the tree entirely.
+   */
+  prompt?: string;
+  /** Scene/outfit/action, needed for the gallery record a retry writes. */
+  sceneName?: string;
+  outfit?: string;
+  action?: string;
 };
 
 export type FanartState = {

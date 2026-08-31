@@ -284,27 +284,25 @@ function FanartPage() {
       runItems: s.runItems.map((item) => (item.id === id ? { ...item, ...patch } : item)),
     }));
 
-  const handleRun = async () => {
-    if (!charDesc.trim()) return toast.error("请填写角色描述");
-    if (!promptItems.length) return toast.error("请至少勾选一个服装或动作");
-
+  /**
+   * Runs a set of prompts through the channel, updating each item as it settles.
+   *
+   * Shared by the first run and by retries so the two cannot drift: concurrency,
+   * cancellation, the gallery write and the "no image returned" case all behave
+   * the same whichever button started it. Only the summary toast differs, which
+   * is why `retrying` is passed in.
+   */
+  const runPrompts = async (items: PromptItem[], retrying = false) => {
     const controller = new AbortController();
     runRef.current = controller;
-    setF({
-      running: true,
-      runItems: promptItems.map((item) => ({
-        id: item.id,
-        label: labelOf(item),
-        status: "pending" as const,
-      })),
-    });
+    setF({ running: true });
 
     try {
       await runWithConcurrency(
-        promptItems,
+        items,
         async (item) => {
           controller.signal.throwIfAborted();
-          patchItem(item.id, { status: "running" });
+          patchItem(item.id, { status: "running", error: undefined });
           try {
             const data = refImages.length
               ? await editImages({
@@ -360,23 +358,33 @@ function FanartPage() {
       );
 
       const settled = useAppStore.getState().fanart.runItems;
-      const ok = settled.filter((i) => i.status === "done").length;
-      const bad = settled.filter((i) => i.status === "failed").length;
-      if (bad === 0) toast.success(`批量完成，共 ${ok} 张`);
+      // Retries report on the items they touched, not on the whole batch: after
+      // retrying 3 of 24, "成功 21 张" would be counting 18 that did not re-run.
+      const scope = retrying
+        ? settled.filter((item) => items.some((candidate) => candidate.id === item.id))
+        : settled;
+      const ok = scope.filter((i) => i.status === "done").length;
+      const bad = scope.filter((i) => i.status === "failed").length;
+      if (retrying) {
+        if (bad === 0) toast.success(`重试完成，${ok} 张已补齐`);
+        else toast.warning(`重试结束：成功 ${ok} 张，仍失败 ${bad} 张`);
+      } else if (bad === 0) toast.success(`批量完成，共 ${ok} 张`);
       else toast.warning(`批量结束：成功 ${ok} 张，失败 ${bad} 张`);
     } catch (e) {
       if (isAbortError(e)) {
         // Anything still queued when the cancel landed never ran, so leaving it
-        // "pending" would read as "in progress" forever.
+        // "pending" would read as "in progress" forever. Scoped to the ids in this
+        // run so cancelling a retry cannot mark unrelated finished items failed.
+        const inRun = new Set(items.map((item) => item.id));
         patchF((s) => ({
           ...s,
           runItems: s.runItems.map((item) =>
-            item.status === "pending" || item.status === "running"
+            inRun.has(item.id) && (item.status === "pending" || item.status === "running")
               ? { ...item, status: "failed" as const, error: "已取消" }
               : item,
           ),
         }));
-        toast.info("已取消批量生成");
+        toast.info(retrying ? "已取消重试" : "已取消批量生成");
       } else toast.error((e as Error).message);
     } finally {
       if (runRef.current === controller) {
@@ -384,6 +392,56 @@ function FanartPage() {
         setF({ running: false });
       }
     }
+  };
+
+  const handleRun = async () => {
+    if (!charDesc.trim()) return toast.error("请填写角色描述");
+    if (!promptItems.length) return toast.error("请至少勾选一个服装或动作");
+
+    setF({
+      runItems: promptItems.map((item) => ({
+        id: item.id,
+        label: labelOf(item),
+        status: "pending" as const,
+        // Stored so a retry re-runs this exact prompt even after the tree is edited.
+        prompt: item.prompt,
+        sceneName: item.sceneName,
+        outfit: item.outfit,
+        action: item.action,
+      })),
+    });
+
+    await runPrompts(promptItems);
+  };
+
+  /**
+   * Re-run failed items from what the run recorded, not from the current tree.
+   *
+   * Items saved before `prompt` was recorded (a run left on screen across the
+   * update) cannot be retried, so they are dropped with a message rather than
+   * retried against a re-derived prompt that may no longer match.
+   */
+  const retryItems = async (targets: FanartRunItem[]) => {
+    const runnable = targets.filter(
+      (item): item is FanartRunItem & { prompt: string } => typeof item.prompt === "string",
+    );
+    if (!runnable.length) {
+      return toast.error("这批失败项缺少原始提示词，请重新提交一次批量生成");
+    }
+    if (runnable.length < targets.length) {
+      toast.warning(`其中 ${targets.length - runnable.length} 项缺少原始提示词，已跳过`);
+    }
+
+    await runPrompts(
+      runnable.map((item) => ({
+        id: item.id,
+        prompt: item.prompt,
+        sceneName: item.sceneName ?? "",
+        outfit: item.outfit ?? "",
+        action: item.action ?? "",
+      })),
+      true,
+    );
   };
 
   return (
@@ -512,7 +570,13 @@ function FanartPage() {
         </aside>
       </div>
 
-      <RunResults items={runItems} aspect={aspect} />
+      <RunResults
+        items={runItems}
+        aspect={aspect}
+        running={running}
+        onRetry={(item) => void retryItems([item])}
+        onRetryFailed={() => void retryItems(runItems.filter((i) => i.status === "failed"))}
+      />
     </div>
   );
 }
