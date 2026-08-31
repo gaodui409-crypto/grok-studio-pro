@@ -13,7 +13,8 @@ import { RunSummary } from "@/components/generation/run-summary";
 import { AspectRatioSelect, ResolutionSelect } from "@/components/param-selects";
 import { useResolutionLimit } from "@/hooks/use-resolution-limit";
 import { ProviderModelSelect, ProviderSelect } from "@/components/provider-model-select";
-import { generateImages, currentProvider, providerLabel } from "@/lib/xai";
+import { QuotaBadge } from "@/components/quota-badge";
+import { generateImagesWithFallback, providerLabel } from "@/lib/xai";
 import { addGalleryFromUrl } from "@/lib/gallery-db";
 import { useAppStore } from "@/lib/app-store";
 import { isAbortError } from "@/lib/http";
@@ -64,7 +65,16 @@ function Index() {
     setT2I({ loading: true });
     const startedAt = performance.now();
     try {
-      const data = await generateImages({
+      // Fallback-aware: if the local tally says the chosen channel is spent for
+      // today, this runs on the next configured one instead of firing a request
+      // that is expected to be refused. The switch is reported below and named in
+      // the run summary, so a result never arrives from a channel the user did not
+      // pick without the page saying so.
+      const {
+        images: data,
+        provider: prov,
+        switchedFrom,
+      } = await generateImagesWithFallback({
         prompt,
         n,
         aspect_ratio: aspect,
@@ -72,7 +82,6 @@ function Index() {
         model,
         signal: controller.signal,
       });
-      const prov = currentProvider();
       setT2I({
         images: data,
         lastRun: {
@@ -83,7 +92,13 @@ function Index() {
           aspect,
         },
       });
-      toast.success(`已生成 ${data.length} 张图片`);
+      if (switchedFrom) {
+        toast.warning(
+          `${providerLabel(switchedFrom)} 今日本地计数已用尽，已改用 ${providerLabel(prov)} 生成 ${data.length} 张`,
+        );
+      } else {
+        toast.success(`已生成 ${data.length} 张图片`);
+      }
       // allSettled, not all: with Promise.all a batch where 3 of 4 images fail
       // to save reports only the first reason and silently drops the rest.
       Promise.allSettled(
@@ -152,6 +167,7 @@ function Index() {
           />
           <ProviderSelect />
           <ProviderModelSelect />
+          <QuotaBadge />
         </aside>
       </div>
 

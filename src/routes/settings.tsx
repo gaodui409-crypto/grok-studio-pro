@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { SettingsNav, type SettingsView } from "@/components/settings/settings-nav";
 import { ProviderPanel } from "@/components/settings/provider-panels";
+import { QuotaPanel } from "@/components/settings/quota-panel";
 import { ConcurrencyPanel, ImageDefaultsPanel } from "@/components/settings/general-panel";
 import { PresetManager } from "@/components/settings/preset-manager";
 import { useSettings } from "@/hooks/use-settings";
@@ -263,6 +264,12 @@ function ChannelView({
       <Card title="凭证">
         <ProviderPanel provider={provider} draft={draft} patch={patch} />
         {issue && <p className="mt-4 text-xs text-warning">还需填写：{issue}</p>}
+      </Card>
+
+      {/* Below the credentials on purpose: you configure a channel once and then
+          come back to read this. */}
+      <Card title="今日额度" hint="本浏览器对这个渠道的本地计数，用于在额度用尽时提示和切换渠道。">
+        <QuotaPanel provider={provider} draft={draft} patch={patch} />
       </Card>
     </>
   );

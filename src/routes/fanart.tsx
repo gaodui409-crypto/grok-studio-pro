@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/page-header";
 import { ApiKeyBanner } from "@/components/api-key-banner";
 import { AspectRatioSelect, ResolutionSelect } from "@/components/param-selects";
 import { ProviderModelSelect, ProviderSelect } from "@/components/provider-model-select";
+import { QuotaBadge } from "@/components/quota-badge";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SectionCard } from "@/components/fanart/section-card";
 import { CharacterCard } from "@/components/fanart/character-card";
@@ -530,6 +531,7 @@ function FanartPage() {
               />
               <ProviderSelect />
               <ProviderModelSelect />
+              <QuotaBadge />
             </div>
           </SectionCard>
         </div>
