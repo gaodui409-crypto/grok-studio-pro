@@ -1,4 +1,5 @@
 import { runPixAiGeneration } from "../pixai-client.ts";
+import { PROVIDER_TIER_ALLOWLIST } from "../resolution-limits.ts";
 import {
   loadSettings,
   nearestTier,
@@ -24,7 +25,10 @@ const PIXAI_ASPECT_RATIOS = new Set([
 // PixAI's v2 API only offers "1k" and "1.5k". Map the shared tier list onto the
 // nearer of the two — "2k" becomes "1.5k" (as before), and the small tiers
 // collapse to "1k" rather than being sent verbatim and rejected.
-const PIXAI_TIERS: readonly ResolutionTier[] = ["1k", "1.5k"];
+//
+// Set shared with the picker (resolution-limits.ts) so what is greyed out and
+// what gets rewritten here are the same list.
+const PIXAI_TIERS: readonly ResolutionTier[] = PROVIDER_TIER_ALLOWLIST.pixai ?? ["1k", "1.5k"];
 
 export function pixAiSizeFromResolution(resolution: ResolutionTier): "1k" | "1.5k" {
   return nearestTier(resolution, PIXAI_TIERS) as "1k" | "1.5k";

@@ -11,6 +11,7 @@ import { ProviderUnsupportedBanner } from "@/components/provider-banner";
 import { ImageGallery } from "@/components/image-gallery";
 import { ImageUpload } from "@/components/image-upload";
 import { ResolutionSelect, ImageModelSelect } from "@/components/param-selects";
+import { useResolutionLimit } from "@/hooks/use-resolution-limit";
 import type { ResolutionTier } from "@/lib/settings";
 import { editImages, currentProvider, providerLabel } from "@/lib/xai";
 import { addGalleryFromUrl } from "@/lib/gallery-db";
@@ -30,6 +31,9 @@ function EditPage() {
   const i2i = useAppStore((s) => s.i2i);
   const set = useAppStore((s) => s.setI2I);
   const { images, prompt, n, resolution, model, loading, results } = i2i;
+  const { limit: resolutionLimit } = useResolutionLimit(resolution, (tier) =>
+    set({ resolution: tier }),
+  );
 
   const handleGenerate = async () => {
     if (!images.length) return toast.error("请上传至少一张图片");
@@ -122,6 +126,7 @@ function EditPage() {
           <ResolutionSelect
             value={resolution}
             onChange={(v) => set({ resolution: v as ResolutionTier })}
+            limit={resolutionLimit}
           />
           <ImageModelSelect value={model} onChange={(v) => set({ model: v })} />
         </aside>

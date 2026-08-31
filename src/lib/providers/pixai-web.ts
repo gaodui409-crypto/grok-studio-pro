@@ -1,9 +1,11 @@
 import { runPixAiWebGeneration } from "../pixai-web-client.ts";
+import { PROVIDER_MAX_EDGE } from "../resolution-limits.ts";
 import { loadSettings, tierEdge, type ResolutionTier } from "../settings.ts";
 import type { ImageGenParams, ImageProviderAdapter } from "./types.ts";
 
-// PixAI's web protocol maxes out at 1536 on the long edge.
-const PIXAI_WEB_MAX_EDGE = 1536;
+// PixAI's web protocol maxes out at 1536 on the long edge. Shared with the picker
+// (resolution-limits.ts) so the tiers greyed out there are the ones clamped here.
+const PIXAI_WEB_MAX_EDGE = PROVIDER_MAX_EDGE["pixai-web"] ?? 1536;
 
 export function pixAiWebDimensions(
   aspectRatio: string,

@@ -103,3 +103,57 @@ test.describe("文生图 · 提示词", () => {
     await expect(page.getByText("4 / 2000")).toBeVisible();
   });
 });
+
+test.describe("文生图 · 分辨率上限", () => {
+  /**
+   * The ceiling has to be visible in the list, not just enforced at request time.
+   *
+   * aspectToWH() has always clamped the long edge, so picking 2k on a 1024px model
+   * produced a 1024px image and said nothing — indistinguishable from the model
+   * ignoring the setting. Asserting on aria-disabled rather than on a class keeps
+   * this about what a screen reader is told, which is the part that was missing.
+   */
+  test("超出当前模型上限的档位不可选，并说明上限", async ({ page }) => {
+    // SDXL on Gitee caps at 1024, so 1.5k and 2k are unreachable.
+    await seedSettings(page, { ...CONFIGURED, giteeModel: "stable-diffusion-xl-base-1.0" });
+    await page.goto("/");
+    await page.waitForFunction(() => document.documentElement.dataset.hydrated === "1");
+
+    await expect(page.getByText("当前模型最高支持 1024px")).toBeVisible();
+
+    await page.getByLabel("分辨率").click();
+    const options = page.getByRole("option");
+    // Radix omits aria-disabled on enabled items rather than setting it false, so
+    // the enabled case asserts absence.
+    await expect(options.filter({ hasText: "768" })).not.toHaveAttribute("aria-disabled", "true");
+    await expect(options.filter({ hasText: "1.5k" })).toHaveAttribute("aria-disabled", "true");
+    await expect(options.filter({ hasText: "2k" })).toHaveAttribute("aria-disabled", "true");
+  });
+
+  test("换到上限更低的模型时，已选档位退到最高可用档而不是默认档", async ({ page }) => {
+    // 2k saved, then Z-Image-Turbo (1664) selected: the honest step-down is 1.5k.
+    await seedSettings(page, {
+      ...CONFIGURED,
+      provider: "modelscope",
+      modelscopeModel: "Tongyi-MAI/Z-Image-Turbo",
+      defaultResolution: "2k",
+    });
+    await page.goto("/");
+    await page.waitForFunction(() => document.documentElement.dataset.hydrated === "1");
+
+    await expect(page.getByLabel("分辨率")).toContainText("1.5k");
+  });
+
+  test("渠道自己就只吃两档时，小档位保留但注明会按什么出图", async ({ page }) => {
+    // xAI takes a tier name and knows only 1k/2k, so 512 rounds *up*. Rounding up
+    // costs nothing the user asked for, so it stays selectable — unlike a ceiling.
+    await seedSettings(page, { ...CONFIGURED, provider: "xai" });
+    await page.goto("/");
+    await page.waitForFunction(() => document.documentElement.dataset.hydrated === "1");
+
+    await page.getByLabel("分辨率").click();
+    const small = page.getByRole("option").filter({ hasText: "512" });
+    await expect(small).not.toHaveAttribute("aria-disabled", "true");
+    await expect(small).toContainText("1024");
+  });
+});

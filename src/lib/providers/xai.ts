@@ -1,4 +1,5 @@
 import { resolveImageModel } from "../provider-runtime.ts";
+import { PROVIDER_TIER_ALLOWLIST } from "../resolution-limits.ts";
 import { loadSettings, nearestTier, type ResolutionTier } from "../settings.ts";
 import { xaiRequest } from "./xai-client.ts";
 import type {
@@ -34,7 +35,10 @@ function normalizeImage(raw: RawImage): GeneratedImage {
 // The xAI image API takes a tier name, and only knows "1k" and "2k". The shared
 // tier list is wider than that (small tiers exist for the free channels), so map
 // onto the nearest one xAI accepts instead of sending e.g. "512" and being refused.
-const XAI_TIERS: readonly ResolutionTier[] = ["1k", "2k"];
+//
+// The set itself lives in resolution-limits.ts so the picker greys out the same
+// tiers this function would have silently rewritten.
+const XAI_TIERS: readonly ResolutionTier[] = PROVIDER_TIER_ALLOWLIST.xai ?? ["1k", "2k"];
 
 export function xaiResolution(tier: ResolutionTier | undefined): "1k" | "2k" {
   return nearestTier(tier ?? "1k", XAI_TIERS) as "1k" | "2k";

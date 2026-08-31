@@ -11,6 +11,7 @@ import { ImageGallery } from "@/components/image-gallery";
 import { EmptyResults } from "@/components/generation/empty-results";
 import { RunSummary } from "@/components/generation/run-summary";
 import { AspectRatioSelect, ResolutionSelect } from "@/components/param-selects";
+import { useResolutionLimit } from "@/hooks/use-resolution-limit";
 import { ProviderModelSelect, ProviderSelect } from "@/components/provider-model-select";
 import { generateImages, currentProvider, providerLabel } from "@/lib/xai";
 import { addGalleryFromUrl } from "@/lib/gallery-db";
@@ -50,6 +51,9 @@ function Index() {
   const setT2I = useAppStore((s) => s.setT2I);
   const { prompt, n, aspect, resolution, model, loading, images, lastRun } = t2i;
   const generationRef = useRef<AbortController | null>(null);
+  const { limit: resolutionLimit } = useResolutionLimit(resolution, (tier) =>
+    setT2I({ resolution: tier }),
+  );
 
   const cancelGenerate = () => generationRef.current?.abort();
 
@@ -144,6 +148,7 @@ function Index() {
           <ResolutionSelect
             value={resolution}
             onChange={(v) => setT2I({ resolution: v as ResolutionTier })}
+            limit={resolutionLimit}
           />
           <ProviderSelect />
           <ProviderModelSelect />

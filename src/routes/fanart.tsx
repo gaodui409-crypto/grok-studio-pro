@@ -17,6 +17,7 @@ import { PromptPreview } from "@/components/fanart/prompt-preview";
 import { RunResults } from "@/components/fanart/run-results";
 import type { EditableItem } from "@/components/editable-chip-list";
 import { useSettings } from "@/hooks/use-settings";
+import { useResolutionLimit } from "@/hooks/use-resolution-limit";
 import { editImages, generateImages, currentProvider, providerLabel } from "@/lib/xai";
 import {
   loadSceneTree,
@@ -141,6 +142,10 @@ function FanartPage() {
     running,
     runItems,
   } = f;
+
+  const { limit: resolutionLimit } = useResolutionLimit(resolution, (tier) =>
+    setF({ resolution: tier }),
+  );
 
   // Initialize active scene if needed
   useEffect(() => {
@@ -463,6 +468,7 @@ function FanartPage() {
               <ResolutionSelect
                 value={resolution}
                 onChange={(v) => setF({ resolution: v as ResolutionTier })}
+                limit={resolutionLimit}
               />
               <ProviderSelect />
               <ProviderModelSelect />

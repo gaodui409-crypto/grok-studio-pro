@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { IMAGE_MODELS, RESOLUTION_TIERS, VIDEO_MODELS } from "@/lib/settings";
+import type { ResolutionLimit } from "@/lib/resolution-limits";
 
 /**
  * A labelled parameter select.
@@ -87,22 +88,52 @@ export function AspectRatioSelect({
 // options ("480p" / "720p"), which are unrelated to image tiers.
 const IMAGE_TIER_OPTIONS = RESOLUTION_TIERS.map((tier) => ({ id: tier.id, label: tier.label }));
 
+/**
+ * Resolution tiers, optionally narrowed to what the current channel can deliver.
+ *
+ * `limit` is what makes the ceiling visible. Without it every tier is offered and
+ * the request path silently reduces anything too large (see resolution-limits.ts)
+ * — a 2k pick on Z-Image-Turbo came back at 1664 with nothing saying why. Passing
+ * a limit greys out the unreachable tiers and states the ceiling underneath.
+ *
+ * Optional on purpose: the settings page sets a *default* tier for every channel
+ * at once, so capping it to whichever channel happens to be selected would block
+ * a value that is perfectly valid on the others.
+ */
 export function ResolutionSelect({
   value,
   onChange,
   options = IMAGE_TIER_OPTIONS,
+  limit,
 }: {
   value: string;
   onChange: (v: string) => void;
   options?: readonly (string | { id: string; label: string })[];
+  limit?: ResolutionLimit;
 }) {
+  // The limit describes image tiers, so it cannot apply to a caller passing its
+  // own option list (the video page's 480p/720p).
+  const applied = options === IMAGE_TIER_OPTIONS ? limit : undefined;
+
+  const hint = applied?.maxEdge
+    ? applied.source === "model"
+      ? `当前模型最高支持 ${applied.maxEdge}px`
+      : `当前渠道最高支持 ${applied.maxEdge}px`
+    : undefined;
+
   return (
-    <ParamSelect label="分辨率" value={value} onChange={onChange}>
+    <ParamSelect label="分辨率" value={value} onChange={onChange} hint={hint}>
       {options.map((option) => {
         const id = typeof option === "string" ? option : option.id;
         const label = typeof option === "string" ? option : option.label;
+        const tier = applied?.tiers.find((candidate) => candidate.id === id);
         return (
-          <SelectItem key={id} value={id}>
+          <SelectItem
+            key={id}
+            value={id}
+            disabled={tier ? !tier.enabled : undefined}
+            hint={tier?.note}
+          >
             {label}
           </SelectItem>
         );
