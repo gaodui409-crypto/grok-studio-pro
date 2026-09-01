@@ -1,15 +1,47 @@
 import { useRef, useState } from "react";
-import { Upload, X, ArrowLeft, ArrowRight, Trash2, Plus } from "lucide-react";
+import {
+  Upload,
+  X,
+  ArrowLeft,
+  ArrowRight,
+  Trash2,
+  Plus,
+  FolderArchive,
+  Loader2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { fileToDataUri } from "@/lib/xai";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import type { ComicPageItem } from "@/lib/app-store";
+import {
+  ARCHIVE_EXTENSIONS,
+  countArchivePages,
+  type ImportedPage,
+  isArchiveName,
+  isImageName,
+  readArchivePages,
+  relativePathOf,
+  sortPickedFiles,
+} from "@/lib/comic-import";
 
-export const MAX_PAGES = 30;
+/**
+ * Ceiling on pages held at once.
+ *
+ * Was 30, which a single chapter exceeds — a CBZ import that truncated at 30
+ * would be useless for the format it exists to open. 200 covers a typical volume.
+ *
+ * ponytail: the real limit is memory, not this number. Pages are held as data
+ * URIs in a zustand store (~1.4MB of string per 1MB image), so 200 large scans is
+ * roughly 300-400MB of tab. The upgrade path is object URLs backed by the blobs
+ * this importer already produces, which would drop the base64 overhead and let
+ * the browser page them out; that is a bigger change than raising a constant.
+ */
+export const MAX_PAGES = 200;
 
 /** Sort by name so a `page-01 … page-12` selection lands in reading order. */
-const byName = (a: File, b: File) => a.name.localeCompare(b.name, "zh-Hans-CN", { numeric: true });
+const byName = (a: File, b: File) =>
+  relativePathOf(a).localeCompare(relativePathOf(b), "zh-Hans-CN", { numeric: true });
 
 export function PageUploader({
   pages,
@@ -22,31 +54,88 @@ export function PageUploader({
   disabled?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const folderRef = useRef<HTMLInputElement>(null);
   const [drag, setDrag] = useState(false);
+  /** True while an unpack is in flight. Unzipping a volume is seconds, not milliseconds. */
+  const [busy, setBusy] = useState(false);
   const room = MAX_PAGES - pages.length;
   const full = room <= 0;
+  /** Anything that should block adding pages: a batch is running, or an import is mid-flight. */
+  const locked = disabled || busy;
 
   const handleFiles = async (files: FileList | null) => {
     if (!files?.length) return;
-    const images = Array.from(files)
-      .filter((f) => f.type.startsWith("image/"))
-      .sort(byName);
-    if (!images.length) return toast.error("请选择图片文件（JPG / PNG / WebP）");
-    // A cap, not a silent truncation: dropping a 200-page volume would hold 200
-    // data URIs in memory at once and read as "it lost my pages" if we said nothing.
-    const accepted = images.slice(0, room);
-    const uris = await Promise.all(accepted.map(fileToDataUri));
-    onChange([
-      ...pages,
-      ...accepted.map((f, i) => ({
-        id: `${Date.now()}-${i}-${Math.random().toString(36).slice(2, 8)}`,
-        name: f.name,
-        src: uris[i],
-        status: "pending" as const,
-      })),
-    ]);
-    if (images.length > accepted.length) {
-      toast.warning(`最多 ${MAX_PAGES} 张，已添加前 ${accepted.length} 张`);
+    const picked = Array.from(files);
+    const archives = picked.filter((f) => isArchiveName(f.name)).sort(byName);
+    // Matched on the name as well as the MIME type: a folder pick hands us files
+    // whose `type` is frequently empty, and those are exactly the scans we are
+    // here to import.
+    const images = sortPickedFiles(
+      picked.filter((f) => isImageName(f.name) || f.type.startsWith("image/")),
+    );
+    if (!archives.length && !images.length) {
+      return toast.error("没有可导入的文件（支持 JPG / PNG / WebP，或 ZIP / CBZ）");
+    }
+
+    setBusy(true);
+    try {
+      const collected: ImportedPage[] = [];
+      // Every page the selection *held*, so the cap warning can say what it left
+      // out rather than just showing fewer pages than were dropped.
+      let found = images.length;
+
+      // Loose images first, then each archive in name order. Both are internally
+      // in reading order; mixing the two in one drop is rare enough that a stable
+      // rule beats trying to interleave them by name.
+      for (const file of images) {
+        if (collected.length >= room) break;
+        collected.push({ name: file.name, blob: file });
+      }
+
+      for (const archive of archives) {
+        const remaining = room - collected.length;
+        let unpacked: ImportedPage[];
+        try {
+          unpacked = await readArchivePages(archive, remaining);
+        } catch {
+          toast.error(`${archive.name} 解压失败，可能不是有效的 ZIP / CBZ`);
+          continue;
+        }
+        // Counted only when the read came back saturated, which is the one case
+        // where pages were left behind. Counting unconditionally would re-parse
+        // every archive for a number nobody reads.
+        found += unpacked.length === remaining ? await countArchivePages(archive) : unpacked.length;
+        if (!unpacked.length && remaining > 0) toast.warning(`${archive.name} 里没有图片`);
+        collected.push(...unpacked);
+      }
+
+      if (!collected.length) {
+        if (found > 0) toast.warning(`已满 ${MAX_PAGES} 张，请先清空或移除几页`);
+        return;
+      }
+
+      const uris = await Promise.all(collected.map((p) => fileToDataUri(p.blob)));
+      const stamp = Date.now();
+      onChange([
+        ...pages,
+        ...collected.map((p, i) => ({
+          id: `${stamp}-${i}-${Math.random().toString(36).slice(2, 8)}`,
+          name: p.name,
+          src: uris[i],
+          status: "pending" as const,
+        })),
+      ]);
+
+      if (found > collected.length) {
+        toast.warning(`共 ${found} 页，超出 ${MAX_PAGES} 张上限，已导入前 ${collected.length} 页`);
+      } else if (archives.length) {
+        // Only for archives: a loose multi-select appears in the filmstrip at
+        // once and never needed confirming, whereas an unpack takes seconds and
+        // this is what says it finished.
+        toast.success(`已导入 ${collected.length} 页`);
+      }
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -67,18 +156,38 @@ export function PageUploader({
             {pages.length}/{MAX_PAGES}
           </span>
         </h2>
-        {pages.length > 0 && (
+        <div className="flex items-center gap-1">
+          {/* Both entry points sit in the header rather than inside the drop zone,
+              because the drop zone disappears once pages are in and importing a
+              second volume is a normal thing to do. */}
           <Button
             type="button"
             variant="ghost"
             size="sm"
-            disabled={disabled}
-            onClick={() => onChange([])}
-            className="h-7 text-xs text-muted-foreground hover:text-destructive"
+            disabled={full || locked}
+            onClick={() => folderRef.current?.click()}
+            className="h-7 text-xs text-muted-foreground hover:text-foreground"
           >
-            <Trash2 className="mr-1 h-3 w-3" aria-hidden /> 清空
+            {busy ? (
+              <Loader2 className="mr-1 h-3 w-3 animate-spin" aria-hidden />
+            ) : (
+              <FolderArchive className="mr-1 h-3 w-3" aria-hidden />
+            )}
+            选择文件夹
           </Button>
-        )}
+          {pages.length > 0 && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={locked}
+              onClick={() => onChange([])}
+              className="h-7 text-xs text-muted-foreground hover:text-destructive"
+            >
+              <Trash2 className="mr-1 h-3 w-3" aria-hidden /> 清空
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* The full-size zone only while there is nothing to show. Once pages are in,
@@ -93,41 +202,66 @@ export function PageUploader({
       {pages.length === 0 && (
         <button
           type="button"
-          disabled={disabled}
+          disabled={locked}
           onClick={() => inputRef.current?.click()}
           onDragOver={(e) => {
             e.preventDefault();
-            if (!disabled) setDrag(true);
+            if (!locked) setDrag(true);
           }}
           onDragLeave={() => setDrag(false)}
           onDrop={(e) => {
             e.preventDefault();
             setDrag(false);
-            if (!disabled) void handleFiles(e.dataTransfer.files);
+            if (!locked) void handleFiles(e.dataTransfer.files);
           }}
           className={cn(
             "flex w-full flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-border/70 bg-surface/50 px-4 py-7 text-center transition hover:border-primary/60 hover:bg-surface focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
             drag && "border-primary bg-accent/30",
-            disabled && "cursor-not-allowed opacity-60 hover:border-border/70",
+            locked && "cursor-not-allowed opacity-60 hover:border-border/70",
           )}
         >
-          <Upload className="h-5 w-5 text-muted-foreground" aria-hidden />
-          <span className="text-sm text-muted-foreground">点击或拖拽上传漫画页</span>
+          {busy ? (
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" aria-hidden />
+          ) : (
+            <Upload className="h-5 w-5 text-muted-foreground" aria-hidden />
+          )}
+          <span className="text-sm text-muted-foreground">
+            {busy ? "正在解压…" : "点击或拖拽上传漫画页"}
+          </span>
           <span className="text-xs text-muted-foreground/70">
-            支持 JPG / PNG / WebP · 最多 {MAX_PAGES} 张 · 按文件名排序
+            图片或 ZIP / CBZ 压缩包 · 最多 {MAX_PAGES} 张 · 按文件名排序
           </span>
         </button>
       )}
+      {/* accept lists the archive extensions alongside image/*: without them the
+          picker filters out the .cbz the user came to open, and the format is the
+          reason this importer exists. */}
       <input
         ref={inputRef}
         type="file"
-        accept="image/*"
+        accept={`image/*,${ARCHIVE_EXTENSIONS.join(",")}`}
         multiple
         className="hidden"
         onChange={(e) => {
           void handleFiles(e.target.files);
           // Without this, re-picking the same file after removing it is a no-op:
           // the value has not changed, so no change event fires.
+          e.target.value = "";
+        }}
+      />
+      {/* A second input, because `webkitdirectory` is a property of the element and
+          not of the click: one input cannot offer both a file and a folder dialog.
+          The attributes are spread rather than written inline — React's JSX types
+          do not declare them, though every browser that supports folder picking
+          reads them. */}
+      <input
+        ref={folderRef}
+        type="file"
+        multiple
+        className="hidden"
+        {...({ webkitdirectory: "", directory: "" } as Record<string, string>)}
+        onChange={(e) => {
+          void handleFiles(e.target.files);
           e.target.value = "";
         }}
       />
@@ -141,13 +275,13 @@ export function PageUploader({
           // Drop anywhere along the strip, not just on the small trailing tile.
           onDragOver={(e) => {
             e.preventDefault();
-            if (!full && !disabled) setDrag(true);
+            if (!full && !locked) setDrag(true);
           }}
           onDragLeave={() => setDrag(false)}
           onDrop={(e) => {
             e.preventDefault();
             setDrag(false);
-            if (!full && !disabled) void handleFiles(e.dataTransfer.files);
+            if (!full && !locked) void handleFiles(e.dataTransfer.files);
           }}
         >
           {pages.map((p, i) => (
@@ -170,7 +304,7 @@ export function PageUploader({
                 <button
                   type="button"
                   aria-label={`把第 ${i + 1} 页前移`}
-                  disabled={i === 0 || disabled}
+                  disabled={i === 0 || locked}
                   onClick={() => move(i, -1)}
                   className="rounded bg-background/85 p-1 hover:bg-background disabled:opacity-40"
                 >
@@ -179,7 +313,7 @@ export function PageUploader({
                 <button
                   type="button"
                   aria-label={`把第 ${i + 1} 页后移`}
-                  disabled={i === pages.length - 1 || disabled}
+                  disabled={i === pages.length - 1 || locked}
                   onClick={() => move(i, 1)}
                   className="rounded bg-background/85 p-1 hover:bg-background disabled:opacity-40"
                 >
@@ -188,7 +322,9 @@ export function PageUploader({
                 <button
                   type="button"
                   aria-label={`移除第 ${i + 1} 页`}
-                  disabled={disabled}
+                  // locked, not disabled: removing a page mid-unpack would be
+                  // undone by the append that is already in flight.
+                  disabled={locked}
                   onClick={() => onChange(pages.filter((x) => x.id !== p.id))}
                   className="rounded bg-background/85 p-1 hover:bg-destructive/80 disabled:opacity-40"
                 >
@@ -203,15 +339,21 @@ export function PageUploader({
           <li className="shrink-0">
             <button
               type="button"
-              disabled={full || disabled}
+              disabled={full || locked}
               onClick={() => inputRef.current?.click()}
               className={cn(
                 "flex h-[146px] w-[92px] flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-border/70 text-muted-foreground transition hover:border-primary/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-                (full || disabled) && "cursor-not-allowed opacity-50 hover:border-border/70",
+                (full || locked) && "cursor-not-allowed opacity-50 hover:border-border/70",
               )}
             >
-              <Plus className="h-4 w-4" aria-hidden />
-              <span className="text-[11px]">{full ? `已满 ${MAX_PAGES}` : "添加"}</span>
+              {busy ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+              ) : (
+                <Plus className="h-4 w-4" aria-hidden />
+              )}
+              <span className="text-[11px]">
+                {busy ? "解压中" : full ? `已满 ${MAX_PAGES}` : "添加"}
+              </span>
             </button>
           </li>
         </ul>

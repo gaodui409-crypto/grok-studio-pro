@@ -1,4 +1,5 @@
 import type { Page } from "@playwright/test";
+import JSZip from "jszip";
 import { test, expect, seedSettings, trapConsole, CONFIGURED } from "./fixtures";
 
 // Nothing here presses 开始批量上色 / 开始批量翻译: CONFIGURED holds fake keys, so a
@@ -69,7 +70,7 @@ test.describe("漫画工具 · 批处理队列", () => {
 
     await expect(queueRows(page)).toHaveCount(3);
     await expect(page.getByText("漫画页").first()).toBeVisible();
-    await expect(page.getByText("3/30")).toBeVisible();
+    await expect(page.getByText("3/200")).toBeVisible();
 
     // The count is the point of the button: 3 张 and 27 张 are different decisions,
     // and the old button said neither.
@@ -106,7 +107,7 @@ test.describe("漫画工具 · 批处理队列", () => {
 
     await page.getByRole("button", { name: "移除第 3 页" }).click();
     await expect(rows).toHaveCount(2);
-    await expect(page.getByText("2/30")).toBeVisible();
+    await expect(page.getByText("2/200")).toBeVisible();
     await expect(page.getByRole("button", { name: "开始批量上色（2 张）" })).toBeVisible();
   });
 
@@ -424,5 +425,118 @@ test.describe("漫画工具 · 批处理队列", () => {
     }).toPass({ timeout: 15_000 });
     // Two billed requests per page is not guessable from the UI, so it is stated.
     await expect(page.getByText(/翻译的请求数是页数的两倍/)).toBeVisible();
+  });
+});
+
+/**
+ * A real archive, built here rather than committed as a binary fixture.
+ *
+ * The unpacking is the thing under test, so the bytes have to be a genuine zip —
+ * and generating them keeps the entry names visible in the test that depends on
+ * their order.
+ */
+async function cbz(paths: string[]): Promise<Buffer> {
+  const zip = new JSZip();
+  for (const path of paths) zip.file(path, PNG);
+  return zip.generateAsync({ type: "nodebuffer" });
+}
+
+/** Picks files through the drop zone, as `upload` does, but with arbitrary bytes. */
+async function pick(page: Page, files: { name: string; mimeType: string; buffer: Buffer }[]) {
+  const zone = page.getByRole("button", { name: /点击或拖拽上传漫画页/ });
+  await expect(async () => {
+    const chooser = page.waitForEvent("filechooser", { timeout: 4000 });
+    await zone.click();
+    await (await chooser).setFiles(files);
+  }).toPass({ timeout: 20_000 });
+}
+
+test.describe("漫画工具 · 压缩包导入", () => {
+  test.beforeEach(async ({ page }) => {
+    await seedSettings(page, CONFIGURED);
+  });
+
+  test("CBZ 解压后按阅读顺序进入队列", async ({ page }) => {
+    const trap = trapConsole(page);
+    await page.goto("/comic");
+    await hydrated(page);
+
+    // Entry order here is neither reading order nor plain string order: ch1/010
+    // before ch1/002 tests numeric collation, and ch2 last tests that the sort
+    // compares the full path before names are flattened to the basename.
+    await pick(page, [
+      {
+        name: "volume.cbz",
+        mimeType: "application/vnd.comicbook+zip",
+        buffer: await cbz(["ch1/010.png", "ch1/002.png", "ch2/001.png", "ComicInfo.xml"]),
+      },
+    ]);
+
+    await expect(page.getByText("3/200")).toBeVisible({ timeout: 20_000 });
+    // ComicInfo.xml is in the archive and must not become a page.
+    await expect(queueRows(page)).toHaveCount(3);
+    await expect(page.getByRole("img", { name: "第 1 页：002.png" })).toBeVisible();
+    await expect(page.getByRole("img", { name: "第 2 页：010.png" })).toBeVisible();
+    await expect(page.getByRole("img", { name: "第 3 页：001.png" })).toBeVisible();
+
+    expect(trap.errors).toEqual([]);
+  });
+
+  test("超出上限时说明总页数和实际导入数", async ({ page }) => {
+    // 200 tiles plus 200 queue rows is a lot of DOM for the dev server to build.
+    test.slow();
+    await page.goto("/comic");
+    await hydrated(page);
+
+    const names = Array.from({ length: 201 }, (_, i) => `${String(i + 1).padStart(3, "0")}.png`);
+    await pick(page, [
+      { name: "big.cbz", mimeType: "application/vnd.comicbook+zip", buffer: await cbz(names) },
+    ]);
+
+    // The number that was left out is the point: showing 200 of a 201-page volume
+    // with no message reads as "it lost my last page".
+    await expect(page.getByText(/共 201 页，超出 200 张上限，已导入前 200 页/)).toBeVisible({
+      timeout: 30_000,
+    });
+    await expect(page.getByText("200/200")).toBeVisible();
+    await expect(page.getByRole("button", { name: /已满 200/ })).toBeDisabled();
+  });
+
+  test("坏压缩包只报错，不清空已有页面", async ({ page }) => {
+    await page.goto("/comic");
+    await hydrated(page);
+
+    await upload(page, ["page-01.png"]);
+    await expect(queueRows(page)).toHaveCount(1);
+
+    // Named .cbz but not a zip. The filmstrip has replaced the drop zone by now,
+    // so this goes through the trailing 添加 tile.
+    await expect(async () => {
+      const chooser = page.waitForEvent("filechooser", { timeout: 4000 });
+      await page.getByRole("button", { name: "添加" }).click();
+      await (
+        await chooser
+      ).setFiles([
+        { name: "broken.cbz", mimeType: "application/zip", buffer: Buffer.from("not a zip") },
+      ]);
+    }).toPass({ timeout: 20_000 });
+
+    await expect(page.getByText(/broken.cbz 解压失败/)).toBeVisible({ timeout: 20_000 });
+    // The page that was already there survives a failed import.
+    await expect(queueRows(page)).toHaveCount(1);
+    await expect(page.getByText("1/200")).toBeVisible();
+  });
+
+  test("提供文件夹入口，且说明支持压缩包", async ({ page }) => {
+    await page.goto("/comic");
+    await hydrated(page);
+
+    // The folder button is the only way to reach `webkitdirectory`, and it has to
+    // exist before pages are added — the drop zone it sits beside disappears later.
+    await expect(page.getByRole("button", { name: "选择文件夹" })).toBeEnabled();
+    // Scoped to the visible panel: both tabs keep an uploader mounted, and this
+    // hint is static text rather than a role, so an unscoped query matches the
+    // hidden panel's copy too.
+    await expect(activePanel(page).getByText(/图片或 ZIP \/ CBZ 压缩包/)).toBeVisible();
   });
 });

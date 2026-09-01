@@ -223,7 +223,12 @@ export function pollVideo(
   };
 }
 
-export function fileToDataUri(file: File): Promise<string> {
+/**
+ * Takes a `Blob`, not just a `File`: pages unpacked from a CBZ are Blobs with no
+ * file behind them, and `readAsDataURL` never needed the narrower type. Every
+ * existing caller passes a File, which is a Blob.
+ */
+export function fileToDataUri(file: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result as string);
