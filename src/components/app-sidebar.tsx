@@ -7,6 +7,7 @@ import {
   Settings as SettingsIcon,
   Images,
   BookOpen,
+  Download as DownloadIcon,
 } from "lucide-react";
 import {
   Sidebar,
@@ -27,6 +28,7 @@ const items = [
   { title: "视频生成", url: "/video", icon: Film },
   { title: "同人图批量", url: "/fanart", icon: Sparkles },
   { title: "漫画工具", url: "/comic", icon: BookOpen },
+  { title: "漫画下载", url: "/pica", icon: DownloadIcon },
   { title: "画廊", url: "/gallery", icon: Images },
 ];
 

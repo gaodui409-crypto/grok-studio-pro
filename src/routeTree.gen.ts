@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as VideoRouteImport } from './routes/video'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as PicaRouteImport } from './routes/pica'
 import { Route as GalleryRouteImport } from './routes/gallery'
 import { Route as FanartRouteImport } from './routes/fanart'
 import { Route as EditRouteImport } from './routes/edit'
@@ -25,6 +26,11 @@ const VideoRoute = VideoRouteImport.update({
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PicaRoute = PicaRouteImport.update({
+  id: '/pica',
+  path: '/pica',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GalleryRoute = GalleryRouteImport.update({
@@ -59,6 +65,7 @@ export interface FileRoutesByFullPath {
   '/edit': typeof EditRoute
   '/fanart': typeof FanartRoute
   '/gallery': typeof GalleryRoute
+  '/pica': typeof PicaRoute
   '/settings': typeof SettingsRoute
   '/video': typeof VideoRoute
 }
@@ -68,6 +75,7 @@ export interface FileRoutesByTo {
   '/edit': typeof EditRoute
   '/fanart': typeof FanartRoute
   '/gallery': typeof GalleryRoute
+  '/pica': typeof PicaRoute
   '/settings': typeof SettingsRoute
   '/video': typeof VideoRoute
 }
@@ -78,6 +86,7 @@ export interface FileRoutesById {
   '/edit': typeof EditRoute
   '/fanart': typeof FanartRoute
   '/gallery': typeof GalleryRoute
+  '/pica': typeof PicaRoute
   '/settings': typeof SettingsRoute
   '/video': typeof VideoRoute
 }
@@ -89,10 +98,19 @@ export interface FileRouteTypes {
     | '/edit'
     | '/fanart'
     | '/gallery'
+    | '/pica'
     | '/settings'
     | '/video'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/comic' | '/edit' | '/fanart' | '/gallery' | '/settings' | '/video'
+  to:
+    | '/'
+    | '/comic'
+    | '/edit'
+    | '/fanart'
+    | '/gallery'
+    | '/pica'
+    | '/settings'
+    | '/video'
   id:
     | '__root__'
     | '/'
@@ -100,6 +118,7 @@ export interface FileRouteTypes {
     | '/edit'
     | '/fanart'
     | '/gallery'
+    | '/pica'
     | '/settings'
     | '/video'
   fileRoutesById: FileRoutesById
@@ -110,6 +129,7 @@ export interface RootRouteChildren {
   EditRoute: typeof EditRoute
   FanartRoute: typeof FanartRoute
   GalleryRoute: typeof GalleryRoute
+  PicaRoute: typeof PicaRoute
   SettingsRoute: typeof SettingsRoute
   VideoRoute: typeof VideoRoute
 }
@@ -128,6 +148,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pica': {
+      id: '/pica'
+      path: '/pica'
+      fullPath: '/pica'
+      preLoaderRoute: typeof PicaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/gallery': {
@@ -174,6 +201,7 @@ const rootRouteChildren: RootRouteChildren = {
   EditRoute: EditRoute,
   FanartRoute: FanartRoute,
   GalleryRoute: GalleryRoute,
+  PicaRoute: PicaRoute,
   SettingsRoute: SettingsRoute,
   VideoRoute: VideoRoute,
 }

@@ -114,7 +114,7 @@ function RootComponent() {
             <SidebarTrigger />
             <div className="h-5 w-px bg-border/60" />
             <span className="font-display text-sm font-medium tracking-tight text-muted-foreground">
-              Grok Studio · 浏览器端 xAI 创作工作台
+              Grok Studio · xAI Imagine · 漫画下载
             </span>
           </header>
           <main className="flex-1">
