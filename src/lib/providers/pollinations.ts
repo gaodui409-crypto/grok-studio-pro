@@ -4,8 +4,7 @@ import { resolveImageModel } from "../provider-runtime.ts";
 import { loadSettings } from "../settings.ts";
 import type { ImageGenParams, ImageProviderAdapter } from "./types.ts";
 
-async function generateImages(p: ImageGenParams) {
-  const settings = loadSettings();
+async function generateImages(p: ImageGenParams, settings = loadSettings()) {
   const model = resolveImageModel("pollinations", p.model, settings) || "flux";
   const { width, height } = resolveDimensions(
     "pollinations",

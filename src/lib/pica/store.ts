@@ -16,9 +16,10 @@ import type {
   DownloadAllFavoritesEvent,
   UpdateDownloadedComicsEvent,
   ChapterInfo,
-} from "@/lib/pica/types";
-import { PicaClient, PicaApiError } from "@/lib/pica/client";
-import { getDownloadManager, type DownloadTask } from "@/lib/pica/download-manager";
+} from "./types.ts";
+import { attachChapterPage } from "./types.ts";
+import { PicaClient, PicaApiError } from "./client.ts";
+import { getDownloadManager, resetDownloadManager, type DownloadTask } from "./download-manager.ts";
 
 const TOKEN_KEY = "pica-token";
 
@@ -121,9 +122,9 @@ export type PicaStore = {
 
   downloadComic: (comic: Comic) => Promise<void>;
   downloadChapter: (comic: Comic, chapterId: string) => Promise<void>;
-  pauseTask: (chapterId: string) => void;
-  resumeTask: (chapterId: string) => void;
-  cancelTask: (chapterId: string) => void;
+  pauseTask: (chapterId: string) => Promise<void>;
+  resumeTask: (chapterId: string) => Promise<void>;
+  cancelTask: (chapterId: string) => Promise<void>;
   downloadAllFavorites: () => Promise<void>;
   updateDownloadedComics: () => Promise<void>;
 
@@ -204,6 +205,7 @@ export const usePicaStore = create<PicaStore>((set, get) => ({
   },
 
   logout: () => {
+    resetDownloadManager();
     saveToken("");
     client.setToken("");
     set({
@@ -293,62 +295,75 @@ export const usePicaStore = create<PicaStore>((set, get) => ({
       set({ downloadedComics: comics, downloadedLoading: false });
     } catch (e) {
       if ((e as Error).name !== "AbortError") {
-        set({ downloadedError: (e as Error).message, downloadedLoading: false });
+        set({ downloadedError: (e as Error).message });
       }
+    } finally {
+      set({ downloadedLoading: false });
     }
   },
 
-  pickComic: (comic) => set({ pickedComic: comic, pickedChapters: null }),
+  pickComic: (comic) =>
+    set({ pickedComic: comic, pickedChapters: null, chapterLoading: false, chapterError: null }),
 
   loadChapters: async (comicId) => {
-    const { client } = get();
+    const { client, pickedComic } = get();
     set({ chapterLoading: true, chapterError: null, pickedChapters: null });
     try {
-      const chapters = await client.getChapters(comicId);
-      set({ pickedChapters: chapters, chapterLoading: false });
+      const chapters = await client.getAllChapters(comicId);
+      if (get().pickedComic !== pickedComic) return;
+      set({
+        pickedChapters: chapters,
+        pickedComic: pickedComic ? attachChapterPage(pickedComic, chapters) : pickedComic,
+        chapterLoading: false,
+      });
     } catch (e) {
+      if (get().pickedComic !== pickedComic) return;
       const msg = e instanceof PicaApiError ? e.body : (e as Error).message;
       set({ chapterError: msg, chapterLoading: false });
     }
   },
 
-  clearChapters: () => set({ pickedChapters: null }),
+  clearChapters: () => set({ pickedComic: null, pickedChapters: null, chapterLoading: false }),
 
   downloadComic: async (comic) => {
-    const { client, pickedChapters } = get();
+    const { client, pickedChapters, pickedComic } = get();
     set({ downloadLoading: true, downloadError: null });
     try {
-      const chapters = pickedChapters ?? (await client.getChapters(comic._id));
-      const dm = getDownloadManager();
+      const chapters =
+        (pickedComic?._id === comic._id ? pickedChapters : null) ??
+        (await client.getAllChapters(comic._id));
+      const comicWithChapters = attachChapterPage(comic, chapters);
+      const dm = getDownloadManager(client);
       for (const ch of chapters.docs) {
         if (ch.isDownloadeable === false) continue;
-        await dm.createTask(comic, ch._id);
+        await dm.createTask(comicWithChapters, ch._id);
       }
       set({ downloadLoading: false });
     } catch (e) {
       const msg = e instanceof PicaApiError ? e.body : (e as Error).message;
       set({ downloadError: msg, downloadLoading: false });
+      throw e;
     }
   },
 
   downloadChapter: async (comic, chapterId) => {
-    const dm = getDownloadManager();
+    const dm = getDownloadManager(get().client);
     await dm.createTask(comic, chapterId);
   },
 
   pauseTask: (chapterId) => {
-    const dm = getDownloadManager();
-    dm.pauseTask(chapterId);
+    const dm = getDownloadManager(get().client);
+    return dm.pauseTask(chapterId);
   },
 
   resumeTask: (chapterId) => {
-    const dm = getDownloadManager();
-    dm.resumeTask(chapterId);
+    const dm = getDownloadManager(get().client);
+    return dm.resumeTask(chapterId);
   },
 
   cancelTask: (chapterId) => {
-    const dm = getDownloadManager();
-    dm.cancelTask(chapterId);
+    const dm = getDownloadManager(get().client);
+    return dm.cancelTask(chapterId);
   },
 
   downloadAllFavorites: async () => {
@@ -357,24 +372,19 @@ export const usePicaStore = create<PicaStore>((set, get) => ({
     try {
       const firstPage = await client.getFavorite("dd", 1);
       const allComics = [...firstPage.docs];
-      const promises: Promise<void>[] = [];
       for (let p = 2; p <= firstPage.pages; p++) {
-        const c = client;
-        promises.push(
-          c.getFavorite("dd", p).then((page) => {
-            allComics.push(...page.docs);
-          }),
-        );
+        const page = await client.getFavorite("dd", p);
+        allComics.push(...page.docs);
       }
-      await Promise.all(promises);
       set({ bulkMessage: `共 ${allComics.length} 部漫画，正在下载…` });
-      const dm = getDownloadManager();
+      const dm = getDownloadManager(client);
       for (const fav of allComics) {
         const comic = await client.getComic(fav._id);
-        const chapters = await client.getChapters(comic._id);
+        const chapters = await client.getAllChapters(comic._id);
+        const comicWithChapters = attachChapterPage(comic, chapters);
         for (const ch of chapters.docs) {
           if (ch.isDownloadeable === false) continue;
-          await dm.createTask(comic, ch._id);
+          await dm.createTask(comicWithChapters, ch._id);
         }
       }
       set({ bulkLoading: null, bulkMessage: null });

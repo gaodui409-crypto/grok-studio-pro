@@ -1,4 +1,4 @@
-import type { ProviderId, ResolutionTier } from "../settings.ts";
+import type { ProviderId, ResolutionTier, Settings } from "../settings.ts";
 
 export type ImageGenParams = {
   prompt: string;
@@ -27,8 +27,8 @@ export type GeneratedImage = {
 export type ImageProviderAdapter = {
   id: ProviderId;
   label: string;
-  generateImages(params: ImageGenParams): Promise<GeneratedImage[]>;
-  editImages?(params: ImageEditParams): Promise<GeneratedImage[]>;
+  generateImages(params: ImageGenParams, settings?: Settings): Promise<GeneratedImage[]>;
+  editImages?(params: ImageEditParams, settings?: Settings): Promise<GeneratedImage[]>;
 };
 
 export type ImageEditingProviderAdapter = ImageProviderAdapter &

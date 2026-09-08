@@ -4,6 +4,7 @@ import { Download, Loader2, ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
+import { picaMediaUrl } from "@/lib/pica/types";
 
 export function ChapterPane({ comic, onBack }: { comic: unknown; onBack: () => void }) {
   const {
@@ -23,7 +24,7 @@ export function ChapterPane({ comic, onBack }: { comic: unknown; onBack: () => v
         title: string;
         author: string;
         description: string;
-        thumb: { path: string; file_server: string };
+        thumb: { path: string; fileServer: string; originalName: string };
         finished: boolean;
         likesCount: number;
         tags: string[];
@@ -39,19 +40,15 @@ export function ChapterPane({ comic, onBack }: { comic: unknown; onBack: () => v
     }
   }, [typedComic?._id, loadChapters]);
 
-  const thumbSrc = typedComic.thumb?.path
-    ? typedComic.thumb.path.startsWith("http")
-      ? typedComic.thumb.path
-      : `${typedComic.thumb.file_server}/static/${typedComic.thumb.path}`
-    : "";
+  const thumbSrc = typedComic.thumb?.path ? picaMediaUrl(typedComic.thumb) : "";
 
   const handleDownloadAll = async () => {
     if (!pickedComic) return;
     try {
       await downloadComic(pickedComic);
       toast.success("已开始下载所有章节");
-    } catch {
-      toast.error("下载失败");
+    } catch (error) {
+      toast.error((error as Error).message);
     }
   };
 
@@ -60,8 +57,8 @@ export function ChapterPane({ comic, onBack }: { comic: unknown; onBack: () => v
     try {
       await downloadChapter(pickedComic, chapterId);
       toast.success("已开始下载章节");
-    } catch {
-      toast.error("下载失败");
+    } catch (error) {
+      toast.error((error as Error).message);
     }
   };
 

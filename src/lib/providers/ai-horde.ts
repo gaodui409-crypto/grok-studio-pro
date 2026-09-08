@@ -6,8 +6,7 @@ import type { ImageGenParams, ImageProviderAdapter } from "./types.ts";
 
 const ANONYMOUS_AI_HORDE_KEY = "0000000000";
 
-async function generateImages(p: ImageGenParams) {
-  const settings = loadSettings();
+async function generateImages(p: ImageGenParams, settings = loadSettings()) {
   const model = resolveImageModel("aihorde", p.model, settings);
   const { width, height } = resolveDimensions(
     "aihorde",

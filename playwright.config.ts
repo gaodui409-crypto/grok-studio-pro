@@ -10,7 +10,7 @@ import { defineConfig, devices } from "@playwright/test";
 // tests cannot assume a URL. Pin an unusual port with --strictPort: better to
 // fail loudly than to run the suite against whatever happens to be on 8081.
 const PORT = Number(process.env.E2E_PORT ?? 3100);
-const BASE_URL = `http://localhost:${PORT}`;
+const BASE_URL = `http://127.0.0.1:${PORT}`;
 
 export default defineConfig({
   testDir: "./e2e",
@@ -30,10 +30,11 @@ export default defineConfig({
     screenshot: "off",
     viewport: { width: 1440, height: 900 },
     locale: "zh-CN",
+    serviceWorkers: "block",
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
-    command: `npx vite dev --port ${PORT} --strictPort`,
+    command: `npx vite dev --host 127.0.0.1 --port ${PORT} --strictPort`,
     url: BASE_URL,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

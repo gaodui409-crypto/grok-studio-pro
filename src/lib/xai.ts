@@ -3,6 +3,10 @@ import { imageProviderRegistry } from "./providers/index.ts";
 import { xaiRequest } from "./providers/xai-client.ts";
 import { chooseProvider } from "./provider-fallback.ts";
 import { recordUsage } from "./quota.ts";
+import { isAbortError } from "./http.ts";
+import { PartialBatchError } from "./partial-batch.ts";
+import { resolveImageModel } from "./provider-runtime.ts";
+import { scheduleImageRequest } from "./provider-scheduler.ts";
 import type { GeneratedImage, ImageEditParams, ImageGenParams } from "./providers/types.ts";
 
 export type { GeneratedImage, ImageEditParams, ImageGenParams } from "./providers/types.ts";
@@ -21,38 +25,72 @@ export type GenerateImagesOutcome = {
   provider: ProviderId;
   /** Set when the local quota tally redirected away from the chosen channel. */
   switchedFrom?: ProviderId;
+  partialError?: string;
+  model: string;
 };
 
-// Opt-in entry point for the quota-aware path: picks a channel via
-// chooseProvider (which redirects away from ones the local tally says are spent)
-// and reports which one actually ran, so a caller can tell the user about the
-// switch. NOT yet used by any page — the quota UI is deferred, and redirecting
-// channels with nothing on screen to explain it would leave the user staring at a
-// result from a provider they did not choose.
+// Report the actual provider and partial results so the page can explain a switch.
 export async function generateImagesWithFallback(
   p: ImageGenParams,
 ): Promise<GenerateImagesOutcome> {
   const settings = loadSettings();
   const choice = chooseProvider(settings);
-  const images = await imageProviderRegistry.get(choice.provider).generateImages(p);
-  recordUsage(choice.provider, images.length);
-  return { images, provider: choice.provider, switchedFrom: choice.switchedFrom };
+  const model = resolveImageModel(choice.provider, p.model, settings);
+  const request = { ...p, model };
+  try {
+    const images = await generateImagesForProvider(choice.provider, request, settings);
+    return { images, provider: choice.provider, switchedFrom: choice.switchedFrom, model };
+  } catch (error) {
+    if (isAbortError(error)) throw error;
+    if (error instanceof PartialBatchError) {
+      return {
+        images: error.results,
+        provider: choice.provider,
+        switchedFrom: choice.switchedFrom,
+        partialError: error.cause.message,
+        model,
+      };
+    }
+    throw error;
+  }
 }
 
 export async function generateImages(p: ImageGenParams) {
   const provider = currentProvider();
-  const images = await imageProviderRegistry.get(provider).generateImages(p);
-  // Counting runs now even though the redirect does not: it only writes to
-  // localStorage, so it changes nothing the user can see, and it means the ledger
-  // already holds real history on the day the quota UI ships. Counted after the
-  // await on the length actually returned — a rejected request consumed nothing,
-  // and a partial batch consumed only what came back.
-  recordUsage(provider, images.length);
-  return images;
+  const settings = loadSettings();
+  const model = resolveImageModel(provider, p.model, settings);
+  return generateImagesForProvider(provider, { ...p, model }, settings);
+}
+
+/** Run one batch against a caller-owned provider snapshot. */
+export async function generateImagesForProvider(
+  provider: ProviderId,
+  p: ImageGenParams,
+  settings = loadSettings(),
+): Promise<GeneratedImage[]> {
+  try {
+    const images = await scheduleImageRequest(provider, settings, p.signal, () =>
+      imageProviderRegistry.get(provider).generateImages(p, settings),
+    );
+    recordUsage(provider, images.length);
+    return images;
+  } catch (error) {
+    if (error instanceof PartialBatchError) recordUsage(provider, error.results.length);
+    throw error;
+  }
 }
 
 export async function editImages(p: ImageEditParams) {
-  return imageProviderRegistry.requireImageEditing(currentProvider()).editImages(p);
+  return editImagesForProvider(currentProvider(), p);
+}
+
+export async function editImagesForProvider(
+  provider: ProviderId,
+  p: ImageEditParams,
+  settings = loadSettings(),
+): Promise<GeneratedImage[]> {
+  const adapter = imageProviderRegistry.requireImageEditing(provider);
+  return scheduleImageRequest(provider, settings, p.signal, () => adapter.editImages(p, settings));
 }
 
 export type VideoGenParams = {

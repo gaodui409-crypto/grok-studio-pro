@@ -10,8 +10,10 @@ import type {
   ChapterImage,
   ComicInFavorite,
   ComicInRank,
-} from "./types";
-import { picaApiRequest } from "./relay";
+} from "./types.ts";
+import { picaMediaUrl } from "./types.ts";
+import { picaApiRequest } from "./relay.ts";
+import { parseComicMetadata } from "./comic-metadata.ts";
 
 export class PicaApiError extends Error {
   status: number;
@@ -36,7 +38,12 @@ export class PicaClient {
     return this.token;
   }
 
-  private async request(method: string, path: string, body?: unknown): Promise<Response> {
+  private async request(
+    method: string,
+    path: string,
+    body?: unknown,
+    signal?: AbortSignal,
+  ): Promise<Response> {
     const result = await picaApiRequest({
       data: {
         method: method as "GET" | "POST",
@@ -44,6 +51,7 @@ export class PicaClient {
         body: body === undefined ? null : JSON.stringify(body),
         token: this.token || null,
       },
+      signal,
     });
     return new Response(result.body, { status: result.status });
   }
@@ -102,7 +110,7 @@ export class PicaClient {
     const data = await resp.json();
     if (data.code !== 200) throw new PicaApiError(resp.status, JSON.stringify(data), data.code);
     if (!data.data) throw new PicaApiError(resp.status, "Missing data");
-    return data.data;
+    return data.data.comics;
   }
 
   async getComic(comicId: string): Promise<Comic> {
@@ -137,14 +145,27 @@ export class PicaClient {
     return data.data.eps;
   }
 
+  async getAllChapters(comicId: string): Promise<Pagination<ChapterInfo>> {
+    const first = await this.getChapters(comicId, 1);
+    const docs = [...first.docs];
+    for (let page = 2; page <= first.pages; page += 1) {
+      const next = await this.getChapters(comicId, page);
+      docs.push(...next.docs);
+    }
+    return { ...first, docs, page: 1, pages: 1, total: first.total || docs.length };
+  }
+
   async getChapterImages(
     comicId: string,
     chapterOrder: number,
     page: number,
+    signal?: AbortSignal,
   ): Promise<Pagination<ChapterImage>> {
     const resp = await this.request(
       "GET",
       `comics/${comicId}/order/${chapterOrder}/pages?page=${page}`,
+      undefined,
+      signal,
     );
     if (resp.status === 401) {
       const text = await resp.text();
@@ -166,32 +187,32 @@ export class PicaClient {
     onProgress?: (fetched: number, total: number) => void,
     signal?: AbortSignal,
   ): Promise<string[]> {
-    const firstPage = await this.getChapterImages(comicId, chapterOrder, 1);
-    const totalPages = firstPage.pages;
-    const pairs: [number, ChapterImage[]][] = [[1, firstPage.docs]];
-    onProgress?.(1, totalPages);
-
-    const promises: Promise<void>[] = [];
-    for (let p = 2; p <= totalPages; p++) {
-      const cid = comicId;
-      const co = chapterOrder;
-      const sig = signal;
-      promises.push(
-        this.getChapterImages(cid, co, p).then((res) => {
-          pairs.push([p, res.docs]);
-          onProgress?.(p, totalPages);
-        }),
-      );
-    }
-    await Promise.all(promises);
-    pairs.sort((a, b) => a[0] - b[0]);
+    const pages = await this.getAllChapterImages(comicId, chapterOrder, onProgress, signal);
     const urls: string[] = [];
-    for (const [, imgs] of pairs) {
-      for (const img of imgs) {
-        urls.push(`${img.media.fileServer}/static/${img.media.path}`);
-      }
+    for (const img of pages) {
+      urls.push(picaMediaUrl(img.media));
     }
     return urls;
+  }
+
+  async getAllChapterImages(
+    comicId: string,
+    chapterOrder: number,
+    onProgress?: (fetched: number, total: number) => void,
+    signal?: AbortSignal,
+  ): Promise<ChapterImage[]> {
+    signal?.throwIfAborted();
+    const firstPage = await this.getChapterImages(comicId, chapterOrder, 1, signal);
+    const totalPages = firstPage.pages;
+    const pages: ChapterImage[] = [...firstPage.docs];
+    onProgress?.(1, totalPages);
+    for (let page = 2; page <= totalPages; page += 1) {
+      signal?.throwIfAborted();
+      const next = await this.getChapterImages(comicId, chapterOrder, page, signal);
+      pages.push(...next.docs);
+      onProgress?.(page, totalPages);
+    }
+    return pages;
   }
 
   async getFavorite(sort: GetFavoriteSort, page: number): Promise<Pagination<ComicInFavorite>> {
@@ -207,7 +228,7 @@ export class PicaClient {
     const data = await resp.json();
     if (data.code !== 200) throw new PicaApiError(resp.status, JSON.stringify(data), data.code);
     if (!data.data) throw new PicaApiError(resp.status, "Missing data");
-    return data.data;
+    return data.data.comics;
   }
 
   async getRank(rankType: RankType): Promise<ComicInRank[]> {
@@ -229,25 +250,26 @@ export class PicaClient {
 
   async getDownloadedComicsFromDir(dirHandle: FileSystemDirectoryHandle): Promise<Comic[]> {
     const comics: Comic[] = [];
-    const iter = (
-      dirHandle as unknown as { [Symbol.asyncIterator](): AsyncIterator<FileSystemHandle> }
-    )[Symbol.asyncIterator]();
-    let result = await iter.next();
-    while (!result.done) {
-      const entry = result.value;
-      if (entry.kind === "file") {
-        const fileHandle = entry as FileSystemFileHandle;
-        try {
-          const file = await fileHandle.getFile();
-          const text = await file.text();
-          const comic = JSON.parse(text) as Comic;
-          comics.push(comic);
-        } catch {
-          // skip invalid metadata files
+    const walk = async (directory: FileSystemDirectoryHandle): Promise<void> => {
+      const iter = (directory as unknown as { values(): AsyncIterator<FileSystemHandle> }).values();
+      let result = await iter.next();
+      while (!result.done) {
+        const entry = result.value;
+        if (entry.kind === "directory") {
+          await walk(entry as FileSystemDirectoryHandle);
+        } else if (entry.kind === "file" && entry.name.toLowerCase() === "comic.json") {
+          try {
+            const file = await (entry as FileSystemFileHandle).getFile();
+            const comic = parseComicMetadata(JSON.parse(await file.text()));
+            if (comic) comics.push(comic);
+          } catch {
+            // skip invalid metadata files
+          }
         }
+        result = await iter.next();
       }
-      result = await iter.next();
-    }
+    };
+    await walk(dirHandle);
     return comics;
   }
 }

@@ -74,12 +74,14 @@ function Index() {
         images: data,
         provider: prov,
         switchedFrom,
+        partialError,
+        model: actualModel,
       } = await generateImagesWithFallback({
         prompt,
         n,
         aspect_ratio: aspect,
         resolution,
-        model,
+        model: undefined,
         signal: controller.signal,
       });
       setT2I({
@@ -92,7 +94,9 @@ function Index() {
           aspect,
         },
       });
-      if (switchedFrom) {
+      if (partialError) {
+        toast.warning(`已生成 ${data.length} 张，后续图片失败：${partialError}`);
+      } else if (switchedFrom) {
         toast.warning(
           `${providerLabel(switchedFrom)} 今日本地计数已用尽，已改用 ${providerLabel(prov)} 生成 ${data.length} 张`,
         );
@@ -105,7 +109,7 @@ function Index() {
         data.map((img) =>
           addGalleryFromUrl(img.url, {
             prompt,
-            model,
+            model: actualModel,
             sceneName: "文生图",
             provider: providerLabel(prov),
           }),

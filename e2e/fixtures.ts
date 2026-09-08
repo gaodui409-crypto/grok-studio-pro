@@ -1,4 +1,5 @@
 import { test as base, expect, type Page } from "@playwright/test";
+import { installOfflineNetwork } from "./offline-network";
 
 export const SETTINGS_KEY = "grok-studio-settings";
 
@@ -135,5 +136,16 @@ export function trapConsole(page: Page): ConsoleTrap {
   return trap;
 }
 
-export const test = base;
+export const test = base.extend({
+  context: async ({ context, baseURL }, runTest, testInfo) => {
+    const blocked = await installOfflineNetwork(context, baseURL!);
+    await runTest(context);
+    if (blocked.length) {
+      await testInfo.attach("blocked-network-requests", {
+        body: JSON.stringify(blocked, null, 2),
+        contentType: "application/json",
+      });
+    }
+  },
+});
 export { expect };

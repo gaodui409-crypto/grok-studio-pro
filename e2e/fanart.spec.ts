@@ -85,6 +85,32 @@ test.describe("同人图批量 · 预估消耗", () => {
 });
 
 test.describe("同人图批量 · 场景树", () => {
+  test("a saved scene tree with replaced ids selects a valid scene", async ({ page }) => {
+    await seedSettings(page, CONFIGURED);
+    await page.addInitScript(() => {
+      localStorage.setItem(
+        "grok-studio-scene-tree",
+        JSON.stringify({
+          scenes: Array.from({ length: 7 }, (_, index) => ({
+            id: `saved-scene-${index}`,
+            name: index === 0 ? "战斗场景" : `Saved scene ${index}`,
+            outfits: ["铠甲"],
+            actions: ["举剑挥砍", "格挡防御"],
+          })),
+          styles: [],
+          lighting: [],
+        }),
+      );
+    });
+    await page.goto("/fanart");
+    await hydrated(page);
+    await pick(page, ["铠甲"], ["举剑挥砍", "格挡防御"]);
+    await page.getByLabel("角色描述").fill("offline saved scene fixture");
+    await expect(
+      page.getByRole("listitem").filter({ hasText: "offline saved scene fixture" }),
+    ).toHaveCount(2);
+  });
+
   test("提示词预览逐条列出组合", async ({ page }) => {
     await seedSettings(page, CONFIGURED);
     await page.goto("/fanart");

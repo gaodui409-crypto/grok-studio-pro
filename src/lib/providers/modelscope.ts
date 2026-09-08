@@ -1,12 +1,15 @@
 import { assertResponseOk } from "../http.ts";
+import { runSequentialBatch } from "../partial-batch.ts";
 import { pollModelScopeTask, type ModelScopeTaskStatus } from "../modelscope-polling.ts";
 import { inferenceParams, resolveDimensions } from "../provider-catalog.ts";
 import { resolveImageModel } from "../provider-runtime.ts";
 import { loadSettings } from "../settings.ts";
 import type { GeneratedImage, ImageGenParams, ImageProviderAdapter } from "./types.ts";
 
-async function generateImages(p: ImageGenParams): Promise<GeneratedImage[]> {
-  const settings = loadSettings();
+async function generateImages(
+  p: ImageGenParams,
+  settings = loadSettings(),
+): Promise<GeneratedImage[]> {
   if (!settings.modelscopeToken) {
     throw new Error("请先在设置中配置 ModelScope Token");
   }
@@ -62,9 +65,7 @@ async function generateImages(p: ImageGenParams): Promise<GeneratedImage[]> {
     return { url, mime_type: "image/png" };
   };
 
-  const output: GeneratedImage[] = [];
-  for (let i = 0; i < (p.n ?? 1); i++) output.push(await runOne());
-  return output;
+  return runSequentialBatch(p.n ?? 1, () => runOne());
 }
 
 export const modelScopeImageProvider: ImageProviderAdapter = {

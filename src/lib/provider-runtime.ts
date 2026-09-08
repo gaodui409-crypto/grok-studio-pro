@@ -21,6 +21,11 @@ export function resolveImageModel(
   const field = PROVIDER_MODEL_FIELD[provider];
   const saved = field ? String(settings[field] ?? "") : "";
 
+  // The generation pages keep their form state for the current session, while
+  // the provider selector writes the canonical value to settings. For xAI the
+  // old page value can therefore be stale after a selector change; saved wins.
+  if (provider === "xai" && saved) return saved;
+
   if (requestedModel) {
     // xAI's model list is not in the catalog (it lives in IMAGE_MODELS), so for
     // xAI any requested id is honoured, as before.

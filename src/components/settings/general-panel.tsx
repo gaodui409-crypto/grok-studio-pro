@@ -1,4 +1,5 @@
 import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 import { AspectRatioSelect, ResolutionSelect } from "@/components/param-selects";
 import type { ResolutionTier, Settings } from "@/lib/settings";
 
@@ -48,8 +49,25 @@ export function ConcurrencyPanel({ draft, patch }: PanelProps) {
         ))}
       </div>
       <p className="text-xs leading-relaxed text-muted-foreground">
-        同人图批量、漫画上色、漫画翻译均使用此并发数。共享免费渠道或同时运行其他会话时建议设为 1。
+        同一标签页、同一渠道和凭据的图片任务共用此上限。其他标签页与软件不受此设置约束，共享渠道建议设为
+        1。
       </p>
+      <div className="flex items-start justify-between gap-4 rounded-lg border border-warning/30 bg-warning/5 px-3 py-3">
+        <div className="space-y-1">
+          <label htmlFor="allow-paid-fallback" className="text-sm font-medium">
+            允许自动切换到付费 xAI
+          </label>
+          <p className="text-xs leading-relaxed text-muted-foreground">
+            免费渠道额度耗尽时，自动使用已配置的 xAI。关闭后会停在当前渠道并显示错误。
+          </p>
+        </div>
+        <Switch
+          id="allow-paid-fallback"
+          checked={draft.allowPaidFallback}
+          onCheckedChange={(allowPaidFallback) => patch({ allowPaidFallback })}
+          aria-label="允许自动切换到付费 xAI"
+        />
+      </div>
     </div>
   );
 }

@@ -9,6 +9,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { IMAGE_MODELS, RESOLUTION_TIERS, VIDEO_MODELS } from "@/lib/settings";
 import type { ResolutionLimit } from "@/lib/resolution-limits";
+import { useSettings } from "@/hooks/use-settings";
 
 /**
  * A labelled parameter select.
@@ -149,8 +150,13 @@ export function ImageModelSelect({
   value: string;
   onChange: (v: string) => void;
 }) {
+  const { settings, update } = useSettings();
+  const handleChange = (next: string) => {
+    onChange(next);
+    if (settings.imageModel !== next) update({ ...settings, imageModel: next });
+  };
   return (
-    <ParamSelect label="图片模型" value={value} onChange={onChange}>
+    <ParamSelect label="图片模型" value={value} onChange={handleChange}>
       {IMAGE_MODELS.map((m) => (
         <SelectItem key={m.id} value={m.id} hint={m.rates}>
           {m.label}

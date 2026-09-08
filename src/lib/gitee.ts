@@ -1,4 +1,5 @@
 import { assertResponseOk, type FetchLike } from "./http.ts";
+import { runSequentialBatch } from "./partial-batch.ts";
 import type { GeneratedImage } from "./providers/types.ts";
 
 const GITEE_IMAGE_URL = "https://ai.gitee.com/v1/images/generations";
@@ -71,9 +72,7 @@ export async function generateGiteeImages(
 
   const model = input.model.trim() || GITEE_DEFAULT_MODEL;
   const { fetch: fetchImpl = fetch } = dependencies;
-  const images: GeneratedImage[] = [];
-
-  for (let index = 0; index < input.count; index += 1) {
+  return runSequentialBatch(input.count, async (index) => {
     input.signal?.throwIfAborted();
     const response = await fetchImpl(GITEE_IMAGE_URL, {
       method: "POST",
@@ -89,8 +88,6 @@ export async function generateGiteeImages(
     const payload = (await response.json()) as { data?: GiteeImage[] };
     const first = payload.data?.[0];
     if (!first) throw new Error("Gitee AI 未返回图片数据");
-    images.push(normalizeGiteeImage(first));
-  }
-
-  return images;
+    return normalizeGiteeImage(first);
+  });
 }

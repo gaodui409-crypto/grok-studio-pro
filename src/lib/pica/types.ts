@@ -16,6 +16,9 @@ export type DownloadTask = {
   state: DownloadTaskState;
   downloadedImgCount: number;
   totalImgCount: number;
+  downloadedImageIds: string[];
+  directory?: FileSystemDirectoryHandle | null;
+  error?: string;
   abortController: AbortController;
   startedAt: number;
 };
@@ -140,6 +143,43 @@ export type Pagination<T> = {
   pages: number;
   docs: T[];
 };
+
+export function picaMediaUrl(media: ImageRespData): string {
+  if (media.path.startsWith("https://")) return media.path;
+  const server = media.fileServer.replace(/\/+$/, "");
+  const path = media.path.replace(/^\/+/, "");
+  return `${server}/static/${path}`;
+}
+
+export function safeDownloadFilename(value: string, fallback: string): string {
+  const basename = value.split(/[\\/]/).pop()?.trim() ?? "";
+  const cleaned = Array.from(basename, (char) => {
+    const code = char.charCodeAt(0);
+    return code < 32 || '<>:"/\\|?*'.includes(char) ? "_" : char;
+  }).join("");
+  return cleaned || fallback;
+}
+
+export function attachChapterPage(comic: Comic, chapters: Pagination<ChapterInfo>): Comic {
+  return {
+    ...comic,
+    chapterInfos: chapters.docs,
+    chapterCount: chapters.total || chapters.docs.length,
+  };
+}
+
+export function chapterImageDownloads(
+  images: ChapterImage[],
+  downloadedIds: ReadonlySet<string> = new Set(),
+): { id: string; url: string; filename: string }[] {
+  return images
+    .map((img, index) => ({
+      id: img._id,
+      url: picaMediaUrl(img.media),
+      filename: `${String(index + 1).padStart(4, "0")}-${safeDownloadFilename(img.media.originalName, `${img._id}.jpg`)}`,
+    }))
+    .filter((item) => !downloadedIds.has(item.id));
+}
 export type PicaResp<T = unknown> = {
   code: number;
   message: string;

@@ -127,6 +127,33 @@ test("填了 key 的 AI Horde 可以作为降级目标", () => {
   });
 });
 
+test("自动降级不会未经授权使用已配置的 xAI", () => {
+  withLedger({ gitee: { [todayKey()]: 10 } }, () => {
+    const settings = twoFreeChannels({
+      apiKey: "paid-xai-key",
+      pollinationsApiKey: "",
+      dailyLimits: { gitee: 10 },
+    });
+    const choice = chooseProvider(settings);
+    assert.equal(choice.provider, "gitee");
+    assert.equal(choice.switchedFrom, undefined);
+  });
+});
+
+test("明确允许后 xAI 才能作为自动降级目标", () => {
+  withLedger({ gitee: { [todayKey()]: 10 } }, () => {
+    const settings = twoFreeChannels({
+      apiKey: "paid-xai-key",
+      pollinationsApiKey: "",
+      dailyLimits: { gitee: 10 },
+      allowPaidFallback: true,
+    });
+    const choice = chooseProvider(settings);
+    assert.equal(choice.provider, "xai");
+    assert.equal(choice.switchedFrom, "gitee");
+  });
+});
+
 test("显式选中匿名 AI Horde 时照常使用", () => {
   withLedger({}, () => {
     const choice = chooseProvider(twoFreeChannels({ provider: "aihorde" }));

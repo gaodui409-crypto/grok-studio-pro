@@ -44,26 +44,34 @@ export function xaiResolution(tier: ResolutionTier | undefined): "1k" | "2k" {
   return nearestTier(tier ?? "1k", XAI_TIERS) as "1k" | "2k";
 }
 
-async function generateImages(p: ImageGenParams): Promise<GeneratedImage[]> {
-  const settings = loadSettings();
+async function generateImages(
+  p: ImageGenParams,
+  settings = loadSettings(),
+): Promise<GeneratedImage[]> {
   const model = resolveImageModel("xai", p.model, settings);
-  const data = await xaiRequest<{ data: RawImage[] }>("/v1/images/generations", {
-    method: "POST",
-    signal: p.signal,
-    body: JSON.stringify({
-      model,
-      prompt: p.prompt,
-      n: p.n ?? 1,
-      aspect_ratio: p.aspect_ratio ?? "1:1",
-      resolution: xaiResolution(p.resolution),
-      response_format: "b64_json",
-    }),
-  });
+  const data = await xaiRequest<{ data: RawImage[] }>(
+    "/v1/images/generations",
+    {
+      method: "POST",
+      signal: p.signal,
+      body: JSON.stringify({
+        model,
+        prompt: p.prompt,
+        n: p.n ?? 1,
+        aspect_ratio: p.aspect_ratio ?? "1:1",
+        resolution: xaiResolution(p.resolution),
+        response_format: "b64_json",
+      }),
+    },
+    settings,
+  );
   return data.data.map(normalizeImage);
 }
 
-async function editImages(p: ImageEditParams): Promise<GeneratedImage[]> {
-  const settings = loadSettings();
+async function editImages(
+  p: ImageEditParams,
+  settings = loadSettings(),
+): Promise<GeneratedImage[]> {
   const body: Record<string, unknown> = {
     model: p.model ?? settings.imageModel,
     prompt: p.prompt,
@@ -77,11 +85,15 @@ async function editImages(p: ImageEditParams): Promise<GeneratedImage[]> {
     body.images = p.images.map((url) => ({ url }));
   }
 
-  const data = await xaiRequest<{ data: RawImage[] }>("/v1/images/edits", {
-    method: "POST",
-    signal: p.signal,
-    body: JSON.stringify(body),
-  });
+  const data = await xaiRequest<{ data: RawImage[] }>(
+    "/v1/images/edits",
+    {
+      method: "POST",
+      signal: p.signal,
+      body: JSON.stringify(body),
+    },
+    settings,
+  );
   return data.data.map(normalizeImage);
 }
 

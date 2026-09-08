@@ -62,8 +62,7 @@ export function pixAiWebDimensions(
   return dimensions;
 }
 
-async function generateImages(params: ImageGenParams) {
-  const settings = loadSettings();
+async function generateImages(params: ImageGenParams, settings = loadSettings()) {
   const dimensions = pixAiWebDimensions(
     params.aspect_ratio ?? settings.defaultAspectRatio,
     params.resolution ?? settings.defaultResolution,

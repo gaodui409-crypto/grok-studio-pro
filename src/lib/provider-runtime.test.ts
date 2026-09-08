@@ -3,15 +3,23 @@ import test from "node:test";
 import { MODELSCOPE_IMAGE_MODEL, resolveImageModel } from "./provider-runtime.ts";
 import { defaultSettings } from "./settings.ts";
 
-test("xAI uses the page model when one is selected", () => {
+test("xAI uses the saved channel model when a page model is selected", () => {
   assert.equal(
-    resolveImageModel("xai", "grok-imagine-image", defaultSettings),
+    resolveImageModel("xai", "grok-imagine-image", {
+      ...defaultSettings,
+      imageModel: "grok-imagine-image",
+    }),
     "grok-imagine-image",
   );
 });
 
 test("xAI falls back to its saved model", () => {
   assert.equal(resolveImageModel("xai", undefined, defaultSettings), defaultSettings.imageModel);
+});
+
+test("xAI ignores stale page model when the saved channel model changed", () => {
+  const settings = { ...defaultSettings, imageModel: "grok-imagine-image" };
+  assert.equal(resolveImageModel("xai", "grok-imagine-image-pro", settings), "grok-imagine-image");
 });
 
 test("ModelScope honours a model from its own catalog", () => {

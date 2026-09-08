@@ -167,6 +167,8 @@ export function nearestTier(
 export type Settings = {
   // Provider selection
   provider: ProviderId;
+  // Automatic quota fallback may use xAI only when explicitly enabled.
+  allowPaidFallback: boolean;
   // Per-channel daily cap, used by the local quota tally (see lib/quota.ts).
   // Absent or 0 means "no cap set" = unlimited as far as this app is concerned.
   dailyLimits: Partial<Record<ProviderId, number>>;
@@ -219,6 +221,7 @@ const KEY = "grok-studio-settings";
 
 export const defaultSettings: Settings = {
   provider: "xai",
+  allowPaidFallback: false,
   // Only the two channels whose daily allowance the 0829 notes actually pin down
   // are pre-filled. The rest meter something that is not per-day at all
   // (Pollinations' non-refreshing Pollen, AI Horde Kudos, PixAI points) or are
@@ -298,7 +301,9 @@ export function enabledProviders(settings: Settings): ProviderId[] {
 // Picking it by hand is fine; being sent there behind your back is not.
 export function fallbackProviders(settings: Settings): ProviderId[] {
   return enabledProviders(settings).filter(
-    (id) => id !== "aihorde" || settings.aiHordeApiKey.trim() !== "",
+    (id) =>
+      (id !== "aihorde" || settings.aiHordeApiKey.trim() !== "") &&
+      (id !== "xai" || settings.allowPaidFallback),
   );
 }
 

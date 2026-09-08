@@ -1,4 +1,4 @@
-export { PicaClient, PicaApiError } from "./client";
+export { PicaClient, PicaApiError } from "./client.ts";
 export type {
   Comic,
   ComicInSearch,
@@ -19,5 +19,5 @@ export type {
   Image,
   Creator,
   ComicInFavorite as ComicInFavoriteType,
-} from "./types";
-export { getDownloadManager, resetDownloadManager, type DownloadTask } from "./download-manager";
+} from "./types.ts";
+export { getDownloadManager, resetDownloadManager, type DownloadTask } from "./download-manager.ts";

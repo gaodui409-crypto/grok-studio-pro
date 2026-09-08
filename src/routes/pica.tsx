@@ -88,6 +88,9 @@ function PicaPage() {
         chapterCount = c.epsCount;
         finished = c.finished;
         categories = c.categories;
+        thumb = { ...c.thumb, fileServer: c.thumb.fileServer };
+        likesCount = c.likesCount;
+        tags = c.tags ?? [];
       }
       return {
         _id: raw._id,

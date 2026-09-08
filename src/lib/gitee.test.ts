@@ -158,6 +158,35 @@ test("generates multiple images serially", async () => {
   );
 });
 
+test("保留前面成功的图片并报告后续限流", async () => {
+  let calls = 0;
+  await assert.rejects(
+    generateGiteeImages(
+      {
+        prompt: "test",
+        apiKey: "gitee-key",
+        model: GITEE_DEFAULT_MODEL,
+        width: 1024,
+        height: 1024,
+        count: 3,
+      },
+      {
+        fetch: async () => {
+          calls += 1;
+          if (calls === 2) return new Response("rate limited", { status: 429 });
+          return new Response(JSON.stringify({ data: [{ b64_json: `img${calls}` }] }));
+        },
+      },
+    ),
+    (error: unknown) => {
+      assert.equal((error as { results?: unknown[] }).results?.length, 1);
+      assert.match((error as { cause?: Error }).cause?.message ?? "", /Gitee AI: rate limited/);
+      return true;
+    },
+  );
+  assert.equal(calls, 2);
+});
+
 test("surfaces an empty data array instead of returning a broken image", async () => {
   await assert.rejects(
     generateGiteeImages(

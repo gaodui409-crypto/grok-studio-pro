@@ -1,4 +1,9 @@
-import type { ComicInSearch, ComicInFavorite, ComicInRank } from "@/lib/pica/types";
+import {
+  picaMediaUrl,
+  type ComicInSearch,
+  type ComicInFavorite,
+  type ComicInRank,
+} from "@/lib/pica/types";
 import { Download, Heart, TrendingUp, FileDown } from "lucide-react";
 
 type ComicCardProps = {
@@ -8,7 +13,7 @@ type ComicCardProps = {
 };
 
 export function ComicCard({ comic, onClick, mode }: ComicCardProps) {
-  const thumb = comic.thumb?.path ?? "";
+  const thumb = comic.thumb?.path ? picaMediaUrl(comic.thumb) : "";
   const title = "title" in comic ? comic.title : "";
   const author = "author" in comic ? comic.author : "";
   const likes = comic.likesCount ?? 0;
@@ -23,7 +28,7 @@ export function ComicCard({ comic, onClick, mode }: ComicCardProps) {
       <div className="relative aspect-[3/4] overflow-hidden bg-surface">
         {thumb ? (
           <img
-            src={thumb.startsWith("http") ? thumb : `https://picaapi.picacomic.com/${thumb}`}
+            src={thumb}
             alt={title}
             className="h-full w-full object-cover transition group-hover:scale-105"
             loading="lazy"

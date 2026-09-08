@@ -41,8 +41,7 @@ export function pixAiAspectRatio(aspectRatio: string): string {
   );
 }
 
-async function generateImages(params: ImageGenParams) {
-  const settings = loadSettings();
+async function generateImages(params: ImageGenParams, settings = loadSettings()) {
   return runPixAiGeneration({
     apiKey: settings.pixaiApiKey,
     prompt: params.prompt,

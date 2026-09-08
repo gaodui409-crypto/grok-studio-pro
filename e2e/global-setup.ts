@@ -1,6 +1,7 @@
 import { chromium, type FullConfig } from "@playwright/test";
+import { installOfflineNetwork } from "./offline-network";
 
-const ROUTES = ["/", "/edit", "/video", "/fanart", "/comic", "/gallery", "/settings"];
+const ROUTES = ["/", "/edit", "/video", "/fanart", "/comic", "/gallery", "/settings", "/pica"];
 
 // Warms Vite's dev module graph before the suite runs.
 //
@@ -18,7 +19,9 @@ export default async function globalSetup(config: FullConfig) {
   if (!baseURL) return;
 
   const browser = await chromium.launch();
-  const page = await browser.newPage();
+  const context = await browser.newContext({ serviceWorkers: "block" });
+  await installOfflineNetwork(context, baseURL);
+  const page = await context.newPage();
   try {
     for (const route of ROUTES) {
       try {

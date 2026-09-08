@@ -1,182 +1,156 @@
-import type { ChapterInfo, Comic, DownloadTaskState, ProgressData } from "./types";
-import { picaImageFetch } from "./relay";
+import { PicaClient } from "./client.ts";
+import {
+  chapterImageDownloads,
+  type Comic,
+  type DownloadTask,
+  type ProgressData,
+} from "./types.ts";
+import { picaImageFetch } from "./relay.ts";
+import { chapterDirectoryName, comicDirectoryName } from "./download-paths.ts";
 
-const DB_NAME = "pica-downloader";
-const DB_VERSION = 1;
+export type { DownloadTask } from "./types.ts";
 const STORE_NAME = "downloads";
-
 function openDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION);
-    req.onupgradeneeded = () => {
-      const db = req.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: "chapterId" });
+    const request = indexedDB.open("pica-downloader", 1);
+    request.onupgradeneeded = () => {
+      if (!request.result.objectStoreNames.contains(STORE_NAME)) {
+        request.result.createObjectStore(STORE_NAME, { keyPath: "chapterId" });
       }
     };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
   });
 }
-
-async function dbPut(record: Record<string, unknown>): Promise<void> {
+async function transaction<T>(
+  mode: IDBTransactionMode,
+  operation: (store: IDBObjectStore) => IDBRequest<T>,
+): Promise<T> {
   const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, "readwrite");
-    tx.objectStore(STORE_NAME).put(record);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
+  try {
+    return await new Promise<T>((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, mode);
+      const request = operation(tx.objectStore(STORE_NAME));
+      tx.oncomplete = () => resolve(request.result);
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error ?? new Error("下载记录保存中断"));
+    });
+  } finally {
+    db.close();
+  }
 }
-
-async function dbGet(chapterId: string): Promise<Record<string, unknown> | undefined> {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, "readonly");
-    const req = tx.objectStore(STORE_NAME).get(chapterId);
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-async function dbDelete(chapterId: string): Promise<void> {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, "readwrite");
-    tx.objectStore(STORE_NAME).delete(chapterId);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
-  });
-}
-
-async function dbAll(): Promise<Record<string, unknown>[]> {
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, "readonly");
-    const req = tx.objectStore(STORE_NAME).getAll();
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-}
-
-export type DownloadTask = {
-  chapterId: string;
-  comic: Comic;
-  chapterInfo: ChapterInfo;
-  state: DownloadTaskState;
-  downloadedImgCount: number;
-  totalImgCount: number;
-  abortController: AbortController;
-  startedAt: number;
+export type DownloadStorage = {
+  all: () => Promise<Record<string, unknown>[]>;
+  put: (record: Record<string, unknown>) => Promise<void>;
+  delete: (chapterId: string) => Promise<void>;
 };
-
-type Listener = (task: DownloadTask) => void;
+const indexedDbStorage: DownloadStorage = {
+  all: () => transaction("readonly", (store) => store.getAll()),
+  put: async (record) => {
+    await transaction("readwrite", (store) => store.put(record));
+  },
+  delete: async (id) => {
+    await transaction("readwrite", (store) => store.delete(id));
+  },
+};
+type DownloadDependencies = {
+  storage?: DownloadStorage;
+  fetchImage?: (url: string, signal: AbortSignal) => Promise<Blob>;
+  saveBrowserFile?: (blob: Blob, filename: string) => void;
+};
+type TaskChange = DownloadTask | { removed: string };
+type Listener = (change: TaskChange) => void;
+const isFinished = (task: DownloadTask) =>
+  ["Completed", "Failed", "Cancelled"].includes(task.state);
 
 export class DownloadManager {
+  private client: PicaClient;
+  private storage: DownloadStorage;
+  private fetchImage: NonNullable<DownloadDependencies["fetchImage"]>;
+  private saveBrowserFile?: DownloadDependencies["saveBrowserFile"];
+  private downloadDirectory: FileSystemDirectoryHandle | null = null;
   private tasks = new Map<string, DownloadTask>();
   private listeners = new Set<Listener>();
-  private chapterSemaphore: { count: number; waiting: (() => void)[] } = {
-    count: 3,
-    waiting: [],
-  };
-  private imgSemaphore: { count: number; waiting: (() => void)[] } = {
-    count: 20,
-    waiting: [],
-  };
-  private bytesPerSec = 0;
-  private speedInterval: ReturnType<typeof setInterval> | null = null;
   private speedListeners = new Set<(speed: string) => void>();
-  private byteCounter = 0;
+  private bytesPerSec = 0;
+  private speedInterval: ReturnType<typeof setInterval>;
+  private writes: Promise<void> = Promise.resolve();
+  private queue: Promise<void> = Promise.resolve();
+  private destroyed = false;
+  readonly ready: Promise<void>;
 
-  constructor() {
+  constructor(client = new PicaClient(), dependencies: DownloadDependencies = {}) {
+    this.client = client;
+    this.storage = dependencies.storage ?? indexedDbStorage;
+    this.fetchImage =
+      dependencies.fetchImage ??
+      (async (url, signal) => {
+        const response = await picaImageFetch({ data: { url }, signal });
+        if (!response.ok) throw new Error(`图片下载失败：HTTP ${response.status}`);
+        return response.blob();
+      });
+    this.saveBrowserFile = dependencies.saveBrowserFile;
     this.speedInterval = setInterval(() => {
-      const mbps = (this.bytesPerSec / 1024 / 1024).toFixed(2);
+      for (const cb of this.speedListeners)
+        cb(`${(this.bytesPerSec / 1024 / 1024).toFixed(2)}MB/s`);
       this.bytesPerSec = 0;
-      for (const cb of this.speedListeners) {
-        cb(`${mbps}MB/s`);
-      }
     }, 1000);
-    this.restoreTasks();
+    this.ready = this.restoreTasks();
+    void this.ready.catch(() => {});
   }
-
-  destroy() {
-    if (this.speedInterval) clearInterval(this.speedInterval);
+  setClient(client: PicaClient) {
+    this.client = client;
   }
-
+  setDownloadDirectory(directory: FileSystemDirectoryHandle | null) {
+    this.downloadDirectory = directory;
+  }
+  getDownloadDirectoryName(): string | null {
+    return this.downloadDirectory?.name ?? null;
+  }
   onSpeedChange(cb: (speed: string) => void) {
     this.speedListeners.add(cb);
     return () => this.speedListeners.delete(cb);
   }
-
   onChange(cb: Listener) {
     this.listeners.add(cb);
     return () => this.listeners.delete(cb);
   }
-
-  private emit(task: DownloadTask) {
-    for (const cb of this.listeners) cb(task);
+  private emit(change: TaskChange) {
+    for (const cb of this.listeners) cb(change);
   }
-
-  private async acquireChapter() {
-    if (this.chapterSemaphore.count > 0) {
-      this.chapterSemaphore.count--;
-      return;
-    }
-    await new Promise<void>((resolve) => this.chapterSemaphore.waiting.push(resolve));
+  private current(task: DownloadTask, controller: AbortController) {
+    return (
+      !this.destroyed &&
+      this.tasks.get(task.chapterId) === task &&
+      task.abortController === controller &&
+      !controller.signal.aborted
+    );
   }
-
-  private releaseChapter() {
-    this.chapterSemaphore.count++;
-    const next = this.chapterSemaphore.waiting.shift();
-    if (next) {
-      this.chapterSemaphore.count--;
-      next();
-    }
+  private assertCurrent(task: DownloadTask, controller: AbortController) {
+    if (!this.current(task, controller)) throw new DOMException("下载已中断", "AbortError");
   }
-
-  private async acquireImg() {
-    if (this.imgSemaphore.count > 0) {
-      this.imgSemaphore.count--;
-      return;
-    }
-    await new Promise<void>((resolve) => this.imgSemaphore.waiting.push(resolve));
-  }
-
-  private releaseImg() {
-    this.imgSemaphore.count++;
-    const next = this.imgSemaphore.waiting.shift();
-    if (next) {
-      this.imgSemaphore.count--;
-      next();
-    }
-  }
-
   private toRecord(task: DownloadTask): Record<string, unknown> {
-    return {
-      chapterId: task.chapterId,
-      comicId: task.comic._id,
-      comicTitle: task.comic.title,
-      comic: task.comic,
-      chapterTitle: task.chapterInfo.title,
-      chapterInfo: task.chapterInfo,
-      state: task.state,
-      downloadedImgCount: task.downloadedImgCount,
-      totalImgCount: task.totalImgCount,
-      startedAt: task.startedAt,
-    };
+    const { abortController: _controller, ...record } = task;
+    return { ...record, downloadedImageIds: [...task.downloadedImageIds] };
   }
-
+  private write(operation: () => Promise<void>) {
+    const result = this.writes.catch(() => {}).then(operation);
+    this.writes = result;
+    return result;
+  }
+  private persist(task: DownloadTask) {
+    const record = this.toRecord(task);
+    return this.write(async () => {
+      if (this.tasks.get(task.chapterId) === task) await this.storage.put(record);
+    });
+  }
   async createTask(comic: Comic, chapterId: string): Promise<void> {
+    await this.ready;
+    if (this.destroyed) throw new Error("下载器已关闭");
     const existing = this.tasks.get(chapterId);
-    if (existing && ["Pending", "Downloading", "Paused"].includes(existing.state)) {
-      throw new Error(`章节ID为\`${chapterId}\`的下载任务已存在`);
-    }
-    this.tasks.delete(chapterId);
-    await dbDelete(chapterId);
-
-    const chapterInfo = comic.chapterInfos.find((c) => c._id === chapterId);
-    if (!chapterInfo) throw new Error(`未找到章节ID为\`${chapterId}\`的章节信息`);
-
+    if (existing && !isFinished(existing)) throw new Error("该章节已有未结束的下载任务");
+    const chapterInfo = comic.chapterInfos?.find((chapter) => chapter._id === chapterId);
+    if (!chapterInfo) throw new Error(`未找到章节：${chapterId}`);
     const task: DownloadTask = {
       chapterId,
       comic,
@@ -184,228 +158,224 @@ export class DownloadManager {
       state: "Pending",
       downloadedImgCount: 0,
       totalImgCount: 0,
+      downloadedImageIds: [],
       abortController: new AbortController(),
       startedAt: Date.now(),
+      directory: this.downloadDirectory,
     };
-
     this.tasks.set(chapterId, task);
-    await dbPut(this.toRecord(task));
+    try {
+      await this.persist(task);
+    } catch (error) {
+      if (existing) this.tasks.set(chapterId, existing);
+      else this.tasks.delete(chapterId);
+      throw error;
+    }
     this.emit(task);
-
-    this.runTask(task);
+    this.enqueue(task);
   }
-
-  private async runTask(task: DownloadTask) {
-    this.emit(task);
-
-    let chapterPermit = false;
-    while (true) {
-      const state = task.state;
-      if (state === "Cancelled") {
-        await dbDelete(task.chapterId);
-        this.tasks.delete(task.chapterId);
-        this.emit(task);
-        return;
-      }
-      if (state === "Paused") {
-        await new Promise((r) => setTimeout(r, 200));
-        continue;
-      }
-      if (state === "Pending" && !chapterPermit) {
-        await this.acquireChapter();
-        chapterPermit = true;
-        if (task.state === "Pending") {
-          task.state = "Downloading";
-          await dbPut(this.toRecord(task));
+  async retryTask(chapterId: string): Promise<void> {
+    const task = this.requireTask(chapterId);
+    if (!isFinished(task)) throw new Error("只有已结束的任务可以重试");
+    await this.createTask(task.comic, chapterId);
+  }
+  async clearFinishedTasks(): Promise<void> {
+    for (const task of [...this.tasks.values()]) {
+      if (!isFinished(task) || this.tasks.get(task.chapterId) !== task) continue;
+      this.tasks.delete(task.chapterId);
+      this.emit({ removed: task.chapterId });
+      try {
+        await this.write(() => this.storage.delete(task.chapterId));
+      } catch (error) {
+        if (!this.tasks.has(task.chapterId)) {
+          this.tasks.set(task.chapterId, task);
           this.emit(task);
         }
-        continue;
+        throw error;
       }
-      if (state === "Downloading" && chapterPermit) {
-        await this.downloadChapter(task);
-        this.releaseChapter();
-        return;
-      }
-      await new Promise((r) => setTimeout(r, 100));
     }
   }
 
-  private async downloadChapter(task: DownloadTask) {
-    try {
-      await this.fetchChapterImages(task);
-      if (task.state === "Cancelled") return;
-
-      const downloaded = task.downloadedImgCount;
-      const total = task.totalImgCount;
-      if (downloaded < total) {
-        task.state = "Failed";
-        await dbPut(this.toRecord(task));
+  // One serial queue owns network and disk writes; resumed runs wait for old callbacks to settle.
+  private enqueue(task: DownloadTask) {
+    const controller = task.abortController;
+    this.queue = this.queue.then(async () => {
+      if (!this.current(task, controller) || task.state !== "Pending") return;
+      try {
+        task.state = "Downloading";
+        await this.persist(task);
         this.emit(task);
-        return;
-      }
-      task.state = "Completed";
-      await dbPut(this.toRecord(task));
-      this.emit(task);
-    } catch {
-      if (task.state !== "Cancelled") {
+        const images = await this.client.getAllChapterImages(
+          task.comic._id,
+          task.chapterInfo.order,
+          undefined,
+          controller.signal,
+        );
+        this.assertCurrent(task, controller);
+        if (images.length === 0) throw new Error("章节没有可下载的图片");
+        const imageIds = new Set(images.map((image) => image._id));
+        task.downloadedImageIds = task.downloadedImageIds.filter((id) => imageIds.has(id));
+        task.totalImgCount = images.length;
+        task.downloadedImgCount = task.downloadedImageIds.length;
+        await this.persist(task);
+        this.emit(task);
+        for (const item of chapterImageDownloads(images, new Set(task.downloadedImageIds))) {
+          this.assertCurrent(task, controller);
+          const blob = await this.fetchImage(item.url, controller.signal);
+          this.assertCurrent(task, controller);
+          if (!blob.size) throw new Error("上游返回了空图片");
+          this.bytesPerSec += blob.size;
+          await this.saveBlob(task, item.filename, blob);
+          // A write already closed on disk still counts if the user paused during that write.
+          if (this.tasks.get(task.chapterId) === task && !isFinished(task)) {
+            task.downloadedImageIds.push(item.id);
+            task.downloadedImgCount = task.downloadedImageIds.length;
+            await this.persist(task);
+            this.emit(task);
+          }
+          this.assertCurrent(task, controller);
+        }
+        task.state = "Completed";
+        await this.persist(task);
+        this.emit(task);
+      } catch (error) {
+        if (!this.current(task, controller)) return;
         task.state = "Failed";
-        await dbPut(this.toRecord(task));
+        task.error = error instanceof Error ? error.message : String(error);
+        await this.persist(task).catch(() => {});
         this.emit(task);
       }
-    }
+    });
   }
-
-  private async fetchChapterImages(task: DownloadTask) {
-    const { comic, chapterInfo } = task;
-    const chapterOrder = chapterInfo.order;
-
-    task.totalImgCount = chapterInfo.images?.total ?? 0;
-    task.downloadedImgCount = 0;
-    await dbPut(this.toRecord(task));
-    this.emit(task);
-
-    if (task.totalImgCount === 0) return;
-
-    const pageImages = chapterInfo.images?.docs ?? [];
-    const imgUrls: { url: string; filename: string }[] = [];
-
-    for (const img of pageImages) {
-      const url = `${img.media.fileServer}/static/${img.media.path}`;
-      const filename = img.media.originalName || `${img._id}.jpg`;
-      imgUrls.push({ url, filename });
-    }
-
-    const joinSet: Promise<void>[] = [];
-    for (const item of imgUrls) {
-      const t = task;
-      const ctrl = task.abortController;
-      joinSet.push(this.downloadOne(t, item.url, item.filename, ctrl.signal));
-    }
-    await Promise.all(joinSet);
-  }
-
-  private async downloadOne(
-    task: DownloadTask,
-    url: string,
-    filename: string,
-    signal: AbortSignal,
-  ) {
-    await this.acquireImg();
-    try {
-      if (task.state === "Cancelled") return;
-      // 图床无 CORS 头且可能被墙，统一经服务端中转下载。
-      const resp = await picaImageFetch({ data: { url }, signal });
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const blob = await resp.blob();
-      const size = blob.size;
-      this.byteCounter += size;
-      this.bytesPerSec += size;
-
+  private async saveBlob(task: DownloadTask, filename: string, blob: Blob): Promise<void> {
+    if (!task.directory) {
+      if (this.saveBrowserFile) return this.saveBrowserFile(blob, filename);
       const objectUrl = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = objectUrl;
-      a.download = filename;
-      a.rel = "noopener";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
+      const anchor = document.createElement("a");
+      anchor.href = objectUrl;
+      anchor.download = filename;
+      anchor.rel = "noopener";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
       setTimeout(() => URL.revokeObjectURL(objectUrl), 5000);
-
-      task.downloadedImgCount++;
-      await dbPut(this.toRecord(task));
-      this.emit(task);
-    } catch (e) {
-      if ((e as Error).name === "AbortError") return;
-      console.error(`Download failed: ${filename}`, e);
-    } finally {
-      this.releaseImg();
+      return;
+    }
+    const comicDir = await task.directory.getDirectoryHandle(
+      comicDirectoryName(task.comic.title, task.comic._id),
+      { create: true },
+    );
+    const chapterDir = await comicDir.getDirectoryHandle(
+      chapterDirectoryName(task.chapterInfo.order, task.chapterInfo.title, task.chapterId),
+      { create: true },
+    );
+    await this.writeFile(chapterDir, filename, blob);
+    await this.writeFile(comicDir, "comic.json", JSON.stringify(task.comic, null, 2));
+  }
+  private async writeFile(directory: FileSystemDirectoryHandle, name: string, data: Blob | string) {
+    const file = await directory.getFileHandle(name, { create: true });
+    const writer = await file.createWritable();
+    try {
+      await writer.write(data);
+      await writer.close();
+    } catch (error) {
+      await writer.abort().catch(() => {});
+      throw error;
     }
   }
-
-  pauseTask(chapterId: string) {
-    const task = this.tasks.get(chapterId);
-    if (!task) throw new Error(`未找到章节ID为\`${chapterId}\`的下载任务`);
+  private requireTask(id: string): DownloadTask {
+    const task = this.tasks.get(id);
+    if (!task) throw new Error(`未找到下载任务：${id}`);
+    return task;
+  }
+  async pauseTask(chapterId: string) {
+    const task = this.requireTask(chapterId);
+    if (!["Pending", "Downloading"].includes(task.state)) return;
     task.state = "Paused";
     task.abortController.abort();
-    dbPut(this.toRecord(task));
+    await this.persist(task);
     this.emit(task);
   }
-
-  resumeTask(chapterId: string) {
-    const task = this.tasks.get(chapterId);
-    if (!task) throw new Error(`未找到章节ID为\`${chapterId}\`的下载任务`);
-    task.state = "Pending";
+  async resumeTask(chapterId: string) {
+    const task = this.requireTask(chapterId);
+    if (task.state !== "Paused") return;
+    if (task.directory) {
+      const directory = task.directory as FileSystemDirectoryHandle & {
+        requestPermission?: (options: { mode: string }) => Promise<string>;
+      };
+      if (
+        directory.requestPermission &&
+        (await directory.requestPermission({ mode: "readwrite" })) !== "granted"
+      ) {
+        throw new Error("需要重新授权原下载目录后才能恢复");
+      }
+    }
+    if (this.tasks.get(chapterId) !== task || task.state !== "Paused") return;
     task.abortController = new AbortController();
-    dbPut(this.toRecord(task));
+    task.state = "Pending";
+    task.error = undefined;
+    await this.persist(task);
     this.emit(task);
-    this.runTask(task);
+    this.enqueue(task);
   }
-
-  cancelTask(chapterId: string) {
-    const task = this.tasks.get(chapterId);
-    if (!task) throw new Error(`未找到章节ID为\`${chapterId}\`的下载任务`);
+  async cancelTask(chapterId: string) {
+    const task = this.requireTask(chapterId);
+    if (isFinished(task)) return;
     task.state = "Cancelled";
     task.abortController.abort();
+    await this.persist(task);
     this.emit(task);
   }
-
   getTask(chapterId: string): DownloadTask | undefined {
     return this.tasks.get(chapterId);
   }
-
   getAllTasks(): DownloadTask[] {
-    return Array.from(this.tasks.values());
+    return [...this.tasks.values()];
   }
-
   private async restoreTasks() {
-    const records = await dbAll();
-    for (const rec of records) {
-      const state = rec.state as DownloadTaskState;
-      if (state === "Downloading" || state === "Pending") {
-        rec.state = "Paused" as DownloadTaskState;
-      }
-      const task = rec as unknown as DownloadTask;
-      if (!task.abortController) {
-        task.abortController = new AbortController();
-      }
+    for (const record of await this.storage.all()) {
+      if (this.destroyed) return;
+      const task = record as unknown as DownloadTask;
+      if (!task.chapterId || !task.comic || !task.chapterInfo) continue;
+      if (["Pending", "Downloading"].includes(task.state)) task.state = "Paused";
+      task.abortController = new AbortController();
+      task.downloadedImageIds = Array.isArray(task.downloadedImageIds)
+        ? task.downloadedImageIds
+        : [];
+      if (task.state !== "Completed") task.downloadedImgCount = task.downloadedImageIds.length;
       this.tasks.set(task.chapterId, task);
       this.emit(task);
     }
   }
-
   getProgressData(task: DownloadTask): ProgressData {
-    const percentage =
-      task.totalImgCount > 0 ? Math.round((task.downloadedImgCount / task.totalImgCount) * 100) : 0;
-    const indicator =
-      task.state === "Downloading"
-        ? `下载中 · ${task.downloadedImgCount}/${task.totalImgCount} 张`
-        : task.state === "Paused"
-          ? "已暂停"
-          : task.state === "Completed"
-            ? "已完成"
-            : task.state === "Failed"
-              ? "失败"
-              : "等待中";
     return {
       ...task,
-      percentage,
-      indicator,
+      percentage: task.totalImgCount
+        ? Math.round((task.downloadedImgCount / task.totalImgCount) * 100)
+        : 0,
+      indicator: task.state,
     };
+  }
+  destroy() {
+    this.destroyed = true;
+    clearInterval(this.speedInterval);
+    for (const task of this.tasks.values()) {
+      if (["Pending", "Downloading"].includes(task.state)) {
+        task.state = "Paused";
+        task.abortController.abort();
+        void this.persist(task).catch(() => {});
+      }
+    }
   }
 }
 
 let instance: DownloadManager | null = null;
-
-export function getDownloadManager(): DownloadManager {
-  if (!instance) {
-    instance = new DownloadManager();
-  }
+export function getDownloadManager(client?: PicaClient): DownloadManager {
+  if (!instance) instance = new DownloadManager(client);
+  else if (client) instance.setClient(client);
   return instance;
 }
-
 export function resetDownloadManager() {
-  if (instance) {
-    instance.destroy();
-  }
+  instance?.destroy();
   instance = null;
 }

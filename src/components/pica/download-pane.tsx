@@ -2,7 +2,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { usePicaStore } from "@/lib/pica/store";
 import { getDownloadManager } from "@/lib/pica/download-manager";
 import type { DownloadTask, DownloadTaskState, ProgressData } from "@/lib/pica/types";
-import { Play, Pause, X, RotateCcw, Trash2, Download as DownloadIcon, Loader2 } from "lucide-react";
+import {
+  Play,
+  Pause,
+  X,
+  RotateCcw,
+  Trash2,
+  Download as DownloadIcon,
+  Loader2,
+  FolderOpen,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Progress } from "@/components/ui/progress";
@@ -28,13 +37,21 @@ function stateColor(state: DownloadTaskState): string {
 }
 
 export function DownloadPane() {
-  const { cancelTask, pauseTask, resumeTask } = usePicaStore();
+  const { cancelTask, pauseTask, resumeTask, client } = usePicaStore();
+  const dm = useRef(getDownloadManager(client)).current;
   const [tasks, setTasks] = useState<DownloadTask[]>([]);
   const [speed, setSpeed] = useState("0.00MB/s");
-  const dm = useRef(getDownloadManager()).current;
+  const [directoryName, setDirectoryName] = useState<string | null>(() =>
+    dm.getDownloadDirectoryName(),
+  );
 
   useEffect(() => {
-    const unsub = dm.onChange((task) => {
+    const unsub = dm.onChange((change) => {
+      if ("removed" in change) {
+        setTasks((prev) => prev.filter((task) => task.chapterId !== change.removed));
+        return;
+      }
+      const task = change;
       setTasks((prev) => {
         const next = [...prev];
         const idx = next.findIndex((t) => t.chapterId === task.chapterId);
@@ -45,6 +62,7 @@ export function DownloadPane() {
     });
     const unsubSpeed = dm.onSpeedChange(setSpeed);
     setTasks(dm.getAllTasks());
+    void dm.ready.catch((error) => toast.error(`下载记录读取失败：${(error as Error).message}`));
     return () => {
       unsub();
       unsubSpeed();
@@ -52,49 +70,84 @@ export function DownloadPane() {
   }, [dm]);
 
   const handlePause = useCallback(
-    (task: DownloadTask) => {
-      pauseTask(task.chapterId);
-      toast.info(`已暂停: ${task.comic.title} - ${task.chapterInfo.title}`);
+    async (task: DownloadTask) => {
+      try {
+        await pauseTask(task.chapterId);
+        toast.info(`已暂停: ${task.comic.title} - ${task.chapterInfo.title}`);
+      } catch (error) {
+        toast.error((error as Error).message);
+      }
     },
     [pauseTask],
   );
 
   const handleResume = useCallback(
-    (task: DownloadTask) => {
-      resumeTask(task.chapterId);
-      toast.info(`已恢复: ${task.comic.title} - ${task.chapterInfo.title}`);
+    async (task: DownloadTask) => {
+      try {
+        await resumeTask(task.chapterId);
+        toast.info(`已恢复: ${task.comic.title} - ${task.chapterInfo.title}`);
+      } catch (error) {
+        toast.error((error as Error).message);
+      }
     },
     [resumeTask],
   );
 
   const handleCancel = useCallback(
-    (task: DownloadTask) => {
-      cancelTask(task.chapterId);
-      toast.info(`已取消: ${task.comic.title} - ${task.chapterInfo.title}`);
+    async (task: DownloadTask) => {
+      try {
+        await cancelTask(task.chapterId);
+        toast.info(`已取消: ${task.comic.title} - ${task.chapterInfo.title}`);
+      } catch (error) {
+        toast.error((error as Error).message);
+      }
     },
     [cancelTask],
   );
 
   const handleRetry = useCallback(
-    (task: DownloadTask) => {
-      task.state = "Pending";
-      task.downloadedImgCount = 0;
-      task.abortController = new AbortController();
-      dm.createTask(task.comic, task.chapterId);
-      toast.info(`重新下载: ${task.comic.title} - ${task.chapterInfo.title}`);
+    async (task: DownloadTask) => {
+      try {
+        await dm.retryTask(task.chapterId);
+        toast.info(`重新下载: ${task.comic.title} - ${task.chapterInfo.title}`);
+      } catch (error) {
+        toast.error((error as Error).message);
+      }
     },
     [dm],
   );
 
-  const handleClearCompleted = useCallback(() => {
-    for (const t of tasks) {
-      if (t.state === "Completed" || t.state === "Cancelled" || t.state === "Failed") {
-        cancelTask(t.chapterId);
-      }
+  const handleClearCompleted = useCallback(async () => {
+    try {
+      await dm.clearFinishedTasks();
+      setTasks(dm.getAllTasks());
+      toast.success("已清理结束的任务");
+    } catch (error) {
+      toast.error((error as Error).message);
     }
-    setTasks(dm.getAllTasks());
-    toast.success("已清理完成的任务");
-  }, [tasks, cancelTask, dm]);
+  }, [dm]);
+
+  const handleChooseDirectory = useCallback(async () => {
+    const picker = (
+      window as Window & {
+        showDirectoryPicker?: (options?: {
+          mode?: "read" | "readwrite";
+        }) => Promise<FileSystemDirectoryHandle>;
+      }
+    ).showDirectoryPicker;
+    if (!picker) {
+      toast.error("当前浏览器不支持选择保存目录，将使用默认下载目录");
+      return;
+    }
+    try {
+      const directory = await picker.call(window, { mode: "readwrite" });
+      dm.setDownloadDirectory(directory);
+      setDirectoryName(directory.name);
+      toast.success(`新任务将保存到：${directory.name}`);
+    } catch (error) {
+      if ((error as Error).name !== "AbortError") toast.error((error as Error).message);
+    }
+  }, [dm]);
 
   const activeCount = tasks.filter(
     (t) => t.state === "Downloading" || t.state === "Pending",
@@ -102,21 +155,35 @@ export function DownloadPane() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-sm font-medium">
             下载队列 · {activeCount} 个进行中 / {tasks.length} 个任务
           </p>
           <p className="text-xs text-muted-foreground">下载速度: {speed}</p>
         </div>
-        {tasks.some(
-          (t) => t.state === "Completed" || t.state === "Cancelled" || t.state === "Failed",
-        ) && (
-          <Button variant="ghost" size="sm" onClick={handleClearCompleted}>
-            <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-            清理完成
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            className="max-w-full"
+            onClick={handleChooseDirectory}
+            title={directoryName ?? "选择保存目录"}
+          >
+            <FolderOpen className="mr-1.5 h-3.5 w-3.5" />
+            <span className="max-w-[200px] truncate">
+              {directoryName ? `新任务保存到 ${directoryName}` : "选择保存目录"}
+            </span>
           </Button>
-        )}
+          {tasks.some(
+            (t) => t.state === "Completed" || t.state === "Cancelled" || t.state === "Failed",
+          ) && (
+            <Button variant="ghost" size="sm" onClick={handleClearCompleted}>
+              <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+              清理完成
+            </Button>
+          )}
+        </div>
       </div>
 
       {tasks.length === 0 ? (
@@ -139,38 +206,49 @@ export function DownloadPane() {
               return (
                 <div
                   key={task.chapterId}
-                  className="rounded-xl border border-border/60 bg-card p-4"
+                  className="rounded-lg border border-border/60 bg-card p-4"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium leading-tight">{task.comic.title}</p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-sm font-medium leading-tight [overflow-wrap:anywhere]">
+                        {task.comic.title}
+                      </p>
+                      <p className="text-xs text-muted-foreground [overflow-wrap:anywhere]">
                         第 {task.chapterInfo.order} 话 · {task.chapterInfo.title}
                       </p>
                     </div>
-                    <span className={`text-xs font-medium ${stateColor(task.state)}`}>
+                    <span className={`shrink-0 text-xs font-medium ${stateColor(task.state)}`}>
                       {stateLabel(task.state)}
                     </span>
                   </div>
 
-                  {(task.state === "Downloading" || task.state === "Pending") &&
-                    task.totalImgCount > 0 && (
-                      <div className="mt-3">
-                        <Progress value={progress.percentage} className="h-1.5" />
-                        <p className="mt-1 text-[11px] text-muted-foreground">
-                          {progress.downloadedImgCount} / {progress.totalImgCount} 张 ·{" "}
-                          {progress.percentage}%
-                        </p>
-                      </div>
-                    )}
+                  {task.totalImgCount > 0 && (
+                    <div className="mt-3">
+                      <Progress value={progress.percentage} className="h-1.5" />
+                      <p className="mt-1 text-[11px] text-muted-foreground">
+                        {progress.downloadedImgCount} / {progress.totalImgCount} 张 ·{" "}
+                        {progress.percentage}%
+                      </p>
+                    </div>
+                  )}
 
+                  {task.error && (
+                    <p
+                      role="alert"
+                      className="mt-2 text-xs text-destructive [overflow-wrap:anywhere]"
+                    >
+                      {task.error}
+                    </p>
+                  )}
                   <div className="mt-3 flex items-center gap-1.5">
-                    {task.state === "Downloading" && (
+                    {(task.state === "Downloading" || task.state === "Pending") && (
                       <Button
                         size="icon"
                         variant="ghost"
                         className="h-7 w-7"
                         onClick={() => handlePause(task)}
+                        title="暂停"
+                        aria-label="暂停"
                       >
                         <Pause className="h-3.5 w-3.5" />
                       </Button>
@@ -181,33 +259,42 @@ export function DownloadPane() {
                         variant="ghost"
                         className="h-7 w-7"
                         onClick={() => handleResume(task)}
+                        title="恢复"
+                        aria-label="恢复"
                       >
                         <Play className="h-3.5 w-3.5" />
                       </Button>
                     )}
-                    {(task.state === "Pending" || task.state === "Downloading") && (
+                    {(task.state === "Pending" ||
+                      task.state === "Downloading" ||
+                      task.state === "Paused") && (
                       <Button
                         size="icon"
                         variant="ghost"
                         className="h-7 w-7"
                         onClick={() => handleCancel(task)}
+                        title="取消"
+                        aria-label="取消"
                       >
                         <X className="h-3.5 w-3.5" />
                       </Button>
                     )}
-                    {task.state === "Failed" && (
+                    {(task.state === "Failed" || task.state === "Cancelled") && (
                       <Button
                         size="icon"
                         variant="ghost"
                         className="h-7 w-7"
                         onClick={() => handleRetry(task)}
+                        title="重新下载"
+                        aria-label="重新下载"
                       >
                         <RotateCcw className="h-3.5 w-3.5" />
                       </Button>
                     )}
                     {task.state === "Completed" && (
                       <span className="text-xs text-success flex items-center gap-1">
-                        <DownloadIcon className="h-3.5 w-3.5" /> 已保存
+                        <DownloadIcon className="h-3.5 w-3.5" />{" "}
+                        {task.directory ? "已写入目录" : "已交给浏览器下载"}
                       </span>
                     )}
                   </div>

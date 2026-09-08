@@ -19,7 +19,7 @@ import { RunResults } from "@/components/fanart/run-results";
 import type { EditableItem } from "@/components/editable-chip-list";
 import { useSettings } from "@/hooks/use-settings";
 import { useResolutionLimit } from "@/hooks/use-resolution-limit";
-import { editImages, generateImages, currentProvider, providerLabel } from "@/lib/xai";
+import { editImagesForProvider, generateImagesForProvider, providerLabel } from "@/lib/xai";
 import {
   loadSceneTree,
   saveSceneTree,
@@ -39,6 +39,8 @@ import {
   type FanartRunItem,
 } from "@/lib/app-store";
 import type { ResolutionTier } from "@/lib/settings";
+import { loadSettings } from "@/lib/settings";
+import { resolveImageModel } from "@/lib/provider-runtime";
 import { isAbortError } from "@/lib/http";
 
 export const Route = createFileRoute("/fanart")({
@@ -148,13 +150,12 @@ function FanartPage() {
     setF({ resolution: tier }),
   );
 
-  // Initialize active scene if needed
+  // Restoring a saved tree can replace every id without changing its length.
   useEffect(() => {
-    if (!activeSceneId && tree.scenes[0]) {
-      setF({ activeSceneId: tree.scenes[0].id });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tree.scenes.length]);
+    if (!treeLoaded || tree.scenes.some((scene) => scene.id === activeSceneId)) return;
+    const next = tree.scenes[0]?.id ?? "";
+    if (next !== activeSceneId) setF({ activeSceneId: next });
+  }, [activeSceneId, setF, tree.scenes, treeLoaded]);
 
   // helpers ------------------------------------------------------
   const getSel = (sceneId: string): SceneSel =>
@@ -297,6 +298,13 @@ function FanartPage() {
     const controller = new AbortController();
     runRef.current = controller;
     setF({ running: true });
+    // Freeze provider/model provenance for the whole batch. Settings controls
+    // remain editable, but changes apply to the next batch rather than causing
+    // later items or gallery records to drift to another channel.
+    const batchSettings = loadSettings();
+    const batchProvider = batchSettings.provider;
+    const batchModel = resolveImageModel(batchProvider, model, batchSettings);
+    const batchProviderLabel = providerLabel(batchProvider);
 
     try {
       await runWithConcurrency(
@@ -306,22 +314,30 @@ function FanartPage() {
           patchItem(item.id, { status: "running", error: undefined });
           try {
             const data = refImages.length
-              ? await editImages({
-                  prompt: item.prompt,
-                  images: refImages,
-                  n: 1,
-                  resolution,
-                  model,
-                  signal: controller.signal,
-                })
-              : await generateImages({
-                  prompt: item.prompt,
-                  n: 1,
-                  aspect_ratio: aspect,
-                  resolution,
-                  model,
-                  signal: controller.signal,
-                });
+              ? await editImagesForProvider(
+                  batchProvider,
+                  {
+                    prompt: item.prompt,
+                    images: refImages,
+                    n: 1,
+                    resolution,
+                    model: batchModel,
+                    signal: controller.signal,
+                  },
+                  batchSettings,
+                )
+              : await generateImagesForProvider(
+                  batchProvider,
+                  {
+                    prompt: item.prompt,
+                    n: 1,
+                    aspect_ratio: aspect,
+                    resolution,
+                    model: batchModel,
+                    signal: controller.signal,
+                  },
+                  batchSettings,
+                );
 
             const first = data[0];
             if (!first) throw new Error("渠道没有返回图片");
@@ -339,8 +355,8 @@ function FanartPage() {
                   outfit: item.outfit,
                   action: item.action,
                   character: charName || charDesc.slice(0, 20),
-                  model,
-                  provider: providerLabel(currentProvider()),
+                  model: batchModel,
+                  provider: batchProviderLabel,
                 });
               } catch (e) {
                 console.error("save gallery failed", e);
